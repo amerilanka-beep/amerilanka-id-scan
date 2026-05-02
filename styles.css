@@ -62,7 +62,7 @@
 
       <div class="final-card" aria-labelledby="final-title">
         <div class="final-head">
-          <h3 id="final-title">Copy Data</h3>
+          <h3 id="final-title">Final Data</h3>
           <button id="copyFinalButton" type="button">Copy</button>
         </div>
         <pre id="finalText">-</pre>
