@@ -54,10 +54,12 @@ async function handleFileSelection(event) {
       return;
     }
 
-    rawText.textContent = apiResult.error || "OpenAI extraction did not return a readable result.";
+    const extractionError = apiResult.error || "The passport extraction service did not return readable data.";
+    rawText.textContent = extractionError;
     reviewWarning.textContent = "Passport extraction failed. No backup OCR was used, so no unreliable data was filled.";
     reviewWarning.hidden = false;
-    setWorking("API Error", 100, "Passport extraction failed. Check the API key or try a clearer passport image.");
+    setWorking("API Error", 100, extractionError);
+    alert(extractionError);
     return;
   } catch (error) {
     statusPill.textContent = "Error";
@@ -206,7 +208,7 @@ renderSavedRecords();
 async function extractWithOpenAi(file) {
   setWorking("Scanning", 8, "Trying secure API extraction...");
   try {
-    const imageData = await fileToDataUrl(file);
+    const imageData = await imageFileToDataUrl(file);
     const response = await fetch("/api/extract", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -245,6 +247,31 @@ async function saveOnlineRecord(record) {
   } catch {
     return { ok: false, configured: true, error: "Could not reach the Google Sheet save service." };
   }
+}
+
+function imageFileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const maxSide = 1800;
+      const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", 0.84));
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      fileToDataUrl(file).then(resolve, reject);
+    };
+
+    image.src = objectUrl;
+  });
 }
 
 function fileToDataUrl(file) {

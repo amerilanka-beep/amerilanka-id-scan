@@ -207,19 +207,12 @@ async function handleMindeeExtract(request, env) {
 }
 
 async function handleMindeeV2Extract(imageData, env) {
-  const { blob, filename } = dataUrlToBlob(imageData);
-  const formData = new FormData();
-  formData.append("model_id", env.MINDEE_MODEL_ID);
-  formData.append("file", blob, filename);
-  formData.append("confidence", "true");
-
-  const enqueueResponse = await fetch("https://api-v2.mindee.net/v2/products/extraction/enqueue", {
-    method: "POST",
-    headers: {
-      "Authorization": env.MINDEE_API_KEY,
-    },
-    body: formData,
-  });
+  let authorization = env.MINDEE_API_KEY;
+  let enqueueResponse = await enqueueMindeeV2(imageData, env, authorization);
+  if (enqueueResponse.status === 401 && !String(env.MINDEE_API_KEY).startsWith("Token ")) {
+    authorization = `Token ${env.MINDEE_API_KEY}`;
+    enqueueResponse = await enqueueMindeeV2(imageData, env, authorization);
+  }
 
   const enqueuePayload = await enqueueResponse.json();
   if (!enqueueResponse.ok) {
@@ -227,7 +220,7 @@ async function handleMindeeV2Extract(imageData, env) {
   }
 
   const job = enqueuePayload.job || {};
-  const resultPayload = await pollMindeeV2Result(job, env.MINDEE_API_KEY);
+  const resultPayload = await pollMindeeV2Result(job, authorization);
 
   return sendJson({
     data: normalizeMindeeV2Passport(resultPayload),
@@ -236,7 +229,23 @@ async function handleMindeeV2Extract(imageData, env) {
   });
 }
 
-async function pollMindeeV2Result(job, apiKey) {
+async function enqueueMindeeV2(imageData, env, authorization) {
+  const { blob, filename } = dataUrlToBlob(imageData);
+  const formData = new FormData();
+  formData.append("model_id", env.MINDEE_MODEL_ID);
+  formData.append("file", blob, filename);
+  formData.append("confidence", "true");
+
+  return fetch("https://api-v2.mindee.net/v2/inferences/enqueue", {
+    method: "POST",
+    headers: {
+      "Authorization": authorization,
+    },
+    body: formData,
+  });
+}
+
+async function pollMindeeV2Result(job, authorization) {
   let pollingUrl = job.polling_url || (job.id ? `https://api-v2.mindee.net/v2/jobs/${job.id}?redirect=false` : "");
   if (!pollingUrl) {
     throw new Error("Mindee did not return a job to poll.");
@@ -249,7 +258,7 @@ async function pollMindeeV2Result(job, apiKey) {
     await sleep(attempt === 0 ? 1200 : 1800);
     const statusResponse = await fetch(pollingUrl, {
       headers: {
-        "Authorization": apiKey,
+        "Authorization": authorization,
       },
       redirect: "manual",
     });
@@ -271,7 +280,7 @@ async function pollMindeeV2Result(job, apiKey) {
       }
       const resultResponse = await fetch(resultUrl, {
         headers: {
-          "Authorization": apiKey,
+          "Authorization": authorization,
         },
       });
       const resultPayload = await resultResponse.json();
