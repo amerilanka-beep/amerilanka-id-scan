@@ -49,8 +49,8 @@ async function handleFileSelection(event) {
     if (apiResult.data) {
       const apiData = apiResult.data;
       fillFields(apiData);
-      rawText.textContent = `Extracted with ${apiResult.provider || "API"} passport OCR. Review all fields before saving.`;
-      setWorking("Review", 100, `${providerName(apiResult.provider)} extraction complete. Confirm every field before saving.`);
+      rawText.textContent = `Extracted with Source ${sourceNumber(apiResult.provider)}. Review all fields before saving.`;
+      setWorking("Review", 100, `Source ${sourceNumber(apiResult.provider)} extraction complete. Confirm every field before saving.`);
       return;
     }
 
@@ -209,10 +209,10 @@ async function extractWithOpenAi(file) {
   }
 }
 
-function providerName(provider) {
-  if (provider === "mindee") return "Mindee";
-  if (provider === "openai") return "OpenAI";
-  return "API";
+function sourceNumber(provider) {
+  if (provider === "mindee") return "1";
+  if (provider === "openai") return "2";
+  return "2";
 }
 
 function fileToDataUrl(file) {
