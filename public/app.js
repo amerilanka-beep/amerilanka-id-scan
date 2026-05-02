@@ -45,16 +45,16 @@ async function handleFileSelection(event) {
 
   try {
     setWorking("Scanning", 5, "Loading passport scanner...");
-    const apiResult = await extractWithOpenAi(file);
+    const apiResult = await extractPassportData(file);
     if (apiResult.data) {
       const apiData = apiResult.data;
       fillFields(apiData);
-      rawText.textContent = `Extracted with Source ${sourceNumber(apiResult.provider)}. Review all fields before saving.`;
-      setWorking("Review", 100, `Source ${sourceNumber(apiResult.provider)} extraction complete. Confirm every field before saving.`);
+      rawText.textContent = "Extraction complete. Review all fields before saving.";
+      setWorking("Review", 100, "Extraction complete. Confirm every field before saving.");
       return;
     }
 
-    const extractionError = apiResult.error || "The passport extraction service did not return readable data.";
+    const extractionError = apiResult.error || "The scanner did not return readable data.";
     rawText.textContent = extractionError;
     reviewWarning.textContent = "Passport extraction failed. No backup OCR was used, so no unreliable data was filled.";
     reviewWarning.hidden = false;
@@ -123,13 +123,13 @@ saveButton.addEventListener("click", async () => {
 
   const onlineSaved = await saveOnlineRecord({ ...record, copyBox, savedAt });
   if (onlineSaved.ok) {
-    progressText.textContent = "Saved on this device and Google Sheet.";
-    alert("Saved on this device and Google Sheet. Refresh the computer page.");
+    progressText.textContent = "Saved on this device and online record.";
+    alert("Saved on this device and online record. Refresh the computer page.");
   } else if (onlineSaved.configured) {
-    progressText.textContent = onlineSaved.error || "Saved on this device. Google Sheet save failed.";
+    progressText.textContent = onlineSaved.error || "Saved on this device. Online save failed.";
     alert(progressText.textContent);
   } else {
-    alert("Saved on this device only. Google Sheet is not connected in Cloudflare.");
+    alert("Saved on this device only. Online record is not connected.");
   }
 });
 
@@ -205,10 +205,10 @@ wordButton.addEventListener("click", () => {
 
 renderSavedRecords();
 
-async function extractWithOpenAi(file) {
+async function extractPassportData(file) {
   setWorking("Scanning", 8, "Trying secure API extraction...");
   try {
-    const imageData = await imageFileToDataUrl(file);
+    const imageData = await fileToDataUrl(file);
     const response = await fetch("/api/extract", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -217,19 +217,24 @@ async function extractWithOpenAi(file) {
 
     if (!response.ok) {
       const errorPayload = await response.json().catch(() => ({}));
-      return { data: null, error: errorPayload.error || `OpenAI request failed (${response.status}).` };
+      return { data: null, error: cleanUserError(errorPayload.error, response.status) };
     }
     const payload = await response.json();
     return { data: payload.data || null, error: payload.error || "", provider: payload.provider || "" };
   } catch {
-    return { data: null, error: "Could not reach the passport extraction service." };
+    return { data: null, error: "Could not reach the scanner. Check the connection and try again." };
   }
 }
 
-function sourceNumber(provider) {
-  if (provider === "mindee") return "1";
-  if (provider === "openai") return "2";
-  return "2";
+function cleanUserError(error, status) {
+  const message = String(error || "").trim();
+  if (!message) return `Scanner request failed (${status}).`;
+  if (/quota|billing|plan/i.test(message)) return "Scanner account needs billing or quota updated.";
+  if (/api key|authorization|unauthorized|401/i.test(message)) return "Scanner account is not authorized.";
+  return message
+    .replace(/OpenAI/gi, "scanner")
+    .replace(/Mindee/gi, "scanner")
+    .replace(/ChatGPT/gi, "scanner");
 }
 
 async function saveOnlineRecord(record) {
@@ -245,33 +250,8 @@ async function saveOnlineRecord(record) {
     const payload = await response.json().catch(() => ({}));
     return { ok: response.ok, configured: true, error: payload.error || "" };
   } catch {
-    return { ok: false, configured: true, error: "Could not reach the Google Sheet save service." };
+    return { ok: false, configured: true, error: "Could not reach the online record service." };
   }
-}
-
-function imageFileToDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    const objectUrl = URL.createObjectURL(file);
-
-    image.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      const maxSide = 1800;
-      const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(image.width * scale));
-      canvas.height = Math.max(1, Math.round(image.height * scale));
-      canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL("image/jpeg", 0.84));
-    };
-
-    image.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      fileToDataUrl(file).then(resolve, reject);
-    };
-
-    image.src = objectUrl;
-  });
 }
 
 function fileToDataUrl(file) {

@@ -161,6 +161,83 @@ h2 {
   margin-top: 16px;
 }
 
+.scan-animation {
+  position: relative;
+  width: 86px;
+  height: 58px;
+  margin: 0 auto 12px;
+}
+
+.scan-card {
+  position: absolute;
+  inset: 0;
+  border: 2px solid rgba(11, 61, 145, 0.22);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, #fff 0%, #fff 58%, #f1f5fb 58%, #f1f5fb 100%);
+  box-shadow: 0 10px 24px rgba(22, 32, 51, 0.12);
+  overflow: hidden;
+}
+
+.scan-card::before {
+  content: "";
+  position: absolute;
+  left: 10px;
+  top: 11px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #dfe7f4;
+}
+
+.scan-card span {
+  position: absolute;
+  left: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: #b9c7dc;
+}
+
+.scan-card span:nth-child(1) {
+  top: 13px;
+  width: 34px;
+}
+
+.scan-card span:nth-child(2) {
+  top: 25px;
+  width: 42px;
+}
+
+.scan-card span:nth-child(3) {
+  top: 37px;
+  width: 28px;
+}
+
+.scan-beam {
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  height: 5px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, var(--red), transparent);
+  box-shadow: 0 0 14px rgba(231, 25, 33, 0.48);
+  animation: scanBeam 1.15s ease-in-out infinite;
+}
+
+@keyframes scanBeam {
+  0% {
+    transform: translateY(4px);
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(49px);
+    opacity: 0.45;
+  }
+}
+
 .progress-bar {
   height: 10px;
   overflow: hidden;

@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#ffffff">
   <title>AmeriLanka ID Scan</title>
   <link rel="stylesheet" href="styles.css">
-  <script src="app.js?v=uploadfix2" defer></script>
+  <script src="app.js?v=anim1" defer></script>
 </head>
 <body>
   <main class="app-shell">
@@ -39,6 +39,14 @@
       </div>
 
       <div class="progress" id="progressWrap" hidden>
+        <div class="scan-animation" id="scanAnimation" aria-hidden="true">
+          <div class="scan-card">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <div class="scan-beam"></div>
+        </div>
         <div class="progress-bar"><span id="progressBar"></span></div>
         <p id="progressText">Preparing scan...</p>
       </div>

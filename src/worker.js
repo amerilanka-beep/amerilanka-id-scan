@@ -27,7 +27,7 @@ async function handleExtract(request, env) {
     const openAiModel = env.OPENAI_MODEL || "gpt-4.1";
 
     if (!openAiApiKey) {
-      return sendJson({ error: "OpenAI API key is not set." }, 503);
+      return sendJson({ error: "Scanner account is not configured." }, 503);
     }
 
     const body = await request.json();
@@ -99,7 +99,7 @@ async function handleExtract(request, env) {
 
     const payload = await apiResponse.json();
     if (!apiResponse.ok) {
-      return sendJson({ error: payload.error?.message || "OpenAI extraction failed." }, apiResponse.status);
+      return sendJson({ error: cleanServiceError(payload.error?.message || "Scanner extraction failed.") }, apiResponse.status);
     }
 
     const extracted = JSON.parse(getResponseText(payload));
@@ -144,16 +144,16 @@ async function handleSave(request, env) {
     const responseText = await response.text();
 
     if (!response.ok) {
-      return sendJson({ error: `Google Sheet save failed: ${response.status} ${responseText.slice(0, 180)}` }, 502);
+      return sendJson({ error: `Online save failed: ${response.status}` }, 502);
     }
 
     if (!responseText.includes('"ok":true') && !responseText.includes('"ok": true')) {
-      return sendJson({ error: `Google Sheet did not confirm save. Check the Web app URL and access. Response: ${responseText.slice(0, 180)}` }, 502);
+      return sendJson({ error: "Online record did not confirm save. Check the connection URL and access." }, 502);
     }
 
     return sendJson({ ok: true });
   } catch (error) {
-    return sendJson({ error: error.message || "Could not save to Google Sheet." }, 500);
+    return sendJson({ error: cleanServiceError(error.message || "Could not save online record.") }, 500);
   }
 }
 
@@ -199,7 +199,7 @@ async function handleMindeeExtract(request, env) {
 
   const payload = await apiResponse.json();
   if (!apiResponse.ok) {
-    return sendJson({ error: payload.api_request?.error?.message || payload.error || "Mindee extraction failed." }, apiResponse.status);
+    return sendJson({ error: cleanServiceError(payload.api_request?.error?.message || payload.error || "Scanner extraction failed.") }, apiResponse.status);
   }
 
   return sendJson({
@@ -219,7 +219,7 @@ async function handleMindeeV2Extract(imageData, env) {
 
   const enqueuePayload = await enqueueResponse.json();
   if (!enqueueResponse.ok) {
-    return sendJson({ error: mindeeV2Error(enqueuePayload) || "Mindee extraction failed." }, enqueueResponse.status);
+    return sendJson({ error: cleanServiceError(mindeeV2Error(enqueuePayload) || "Scanner extraction failed.") }, enqueueResponse.status);
   }
 
   const job = enqueuePayload.job || {};
@@ -321,7 +321,7 @@ function normalizeMindeeV2Passport(payload) {
     gender,
     nationality,
     expirationDate,
-    warning: warning || "Source 1 result. Check every field against the document before saving.",
+    warning: warning || "Check every field against the document before saving.",
   };
 }
 
@@ -383,7 +383,7 @@ function normalizeMindeePassport(payload) {
     gender,
     nationality,
     expirationDate,
-    warning: lowConfidence || "Mindee Passport OCR result. Check every field against the document before saving.",
+    warning: lowConfidence || "Check every field against the document before saving.",
   };
 }
 
@@ -415,7 +415,7 @@ function confidenceWarnings(prediction, fieldLabels) {
     }
   }
   if (!weak.length) return "";
-  return `Mindee marked these fields lower confidence: ${weak.join(", ")}. Check every field before saving.`;
+  return `These fields need extra review: ${weak.join(", ")}. Check every field before saving.`;
 }
 
 function normalizeGender(value) {
@@ -434,7 +434,17 @@ function getResponseText(payload) {
       if (content.text) return content.text;
     }
   }
-  throw new Error("OpenAI returned no text.");
+  throw new Error("Scanner returned no text.");
+}
+
+function cleanServiceError(error) {
+  const message = String(error || "").trim();
+  if (/quota|billing|plan/i.test(message)) return "Scanner account needs billing or quota updated.";
+  if (/api key|authorization|unauthorized|401/i.test(message)) return "Scanner account is not authorized.";
+  return message
+    .replace(/OpenAI/gi, "scanner")
+    .replace(/Mindee/gi, "scanner")
+    .replace(/ChatGPT/gi, "scanner");
 }
 
 function normalizeExtractedData(data) {
