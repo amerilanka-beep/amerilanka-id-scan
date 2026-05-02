@@ -122,8 +122,12 @@ saveButton.addEventListener("click", async () => {
   const onlineSaved = await saveOnlineRecord({ ...record, copyBox, savedAt });
   if (onlineSaved.ok) {
     progressText.textContent = "Saved on this device and Google Sheet.";
+    alert("Saved on this device and Google Sheet. Refresh the computer page.");
   } else if (onlineSaved.configured) {
     progressText.textContent = onlineSaved.error || "Saved on this device. Google Sheet save failed.";
+    alert(progressText.textContent);
+  } else {
+    alert("Saved on this device only. Google Sheet is not connected in Cloudflare.");
   }
 });
 
