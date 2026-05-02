@@ -133,9 +133,14 @@ async function handleSave(request, env) {
         copyBox: String(record.copyBox || ""),
       }),
     });
+    const responseText = await response.text();
 
     if (!response.ok) {
-      return sendJson({ error: "Google Sheet save failed." }, 502);
+      return sendJson({ error: `Google Sheet save failed: ${response.status} ${responseText.slice(0, 180)}` }, 502);
+    }
+
+    if (!responseText.includes('"ok":true') && !responseText.includes('"ok": true')) {
+      return sendJson({ error: `Google Sheet did not confirm save. Check the Web app URL and access. Response: ${responseText.slice(0, 180)}` }, 502);
     }
 
     return sendJson({ ok: true });

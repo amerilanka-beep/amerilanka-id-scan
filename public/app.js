@@ -123,7 +123,7 @@ saveButton.addEventListener("click", async () => {
   if (onlineSaved.ok) {
     progressText.textContent = "Saved on this device and Google Sheet.";
   } else if (onlineSaved.configured) {
-    progressText.textContent = "Saved on this device. Google Sheet save failed.";
+    progressText.textContent = onlineSaved.error || "Saved on this device. Google Sheet save failed.";
   }
 });
 
@@ -236,9 +236,10 @@ async function saveOnlineRecord(record) {
     if (response.status === 204) {
       return { ok: false, configured: false };
     }
-    return { ok: response.ok, configured: true };
+    const payload = await response.json().catch(() => ({}));
+    return { ok: response.ok, configured: true, error: payload.error || "" };
   } catch {
-    return { ok: false, configured: true };
+    return { ok: false, configured: true, error: "Could not reach the Google Sheet save service." };
   }
 }
 

@@ -14,6 +14,13 @@ Use this if you want every saved scan to appear in an online Google Sheet.
 ```js
 const SHEET_NAME = "Scans";
 
+function doGet() {
+  getSheet();
+  return ContentService
+    .createTextOutput("AmeriLanka Google Sheet connection is ready.")
+    .setMimeType(ContentService.MimeType.TEXT);
+}
+
 function doPost(e) {
   const sheet = getSheet();
   const data = JSON.parse(e.postData.contents || "{}");
