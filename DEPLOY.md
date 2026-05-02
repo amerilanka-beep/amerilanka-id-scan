@@ -26,17 +26,17 @@ OPENAI_MODEL="gpt-4.1-mini"
 
 Do not commit `.dev.vars`.
 
-## Cloudflare Pages
+## Cloudflare Workers Static Assets
 
-Deploy the app as a Cloudflare Pages project. Add `OPENAI_API_KEY` as an encrypted secret in Cloudflare, not as a plain text variable.
+Deploy the app as a Cloudflare Worker with static assets. Add `OPENAI_API_KEY` as an encrypted secret in Cloudflare, not as a plain text variable.
 
 Dashboard path:
 
 1. Go to Cloudflare Dashboard.
 2. Open Workers & Pages.
-3. Create a Pages project.
-4. Upload this project folder or connect it from Git.
-5. Open the Pages project settings.
+3. Create an application from the GitHub repository.
+4. Use the Worker/static assets project.
+5. Open the project settings.
 6. Go to Variables and Secrets.
 7. Add `OPENAI_API_KEY` as an encrypted secret.
 8. Optional: add `OPENAI_MODEL` as a normal variable with `gpt-4.1-mini`.
@@ -46,9 +46,8 @@ With Wrangler:
 
 ```powershell
 npx wrangler login
-npx wrangler pages project create amerilanka-id-scan
-npx wrangler pages secret put OPENAI_API_KEY --project-name amerilanka-id-scan
-npx wrangler pages deploy . --project-name amerilanka-id-scan
+npx wrangler secret put OPENAI_API_KEY
+npx wrangler deploy
 ```
 
 After deployment, open the Cloudflare Pages URL on your phone.

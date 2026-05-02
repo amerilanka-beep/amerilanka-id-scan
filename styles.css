@@ -1,345 +1,93 @@
-:root {
-  color-scheme: light;
-  --blue: #0b3d91;
-  --red: #e71921;
-  --ink: #162033;
-  --muted: #687386;
-  --line: #dfe5ef;
-  --panel: #ffffff;
-  --soft: #f4f7fb;
-  --shadow: 0 18px 50px rgba(22, 32, 51, 0.12);
-}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <title>AmeriLanka ID Scan</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="brand">
+      <img src="assets/amerilanka-logo.png" alt="AmeriLanka Travels">
+    </header>
 
-* {
-  box-sizing: border-box;
-}
+    <section class="scan-panel" aria-labelledby="scan-title">
+      <div class="title-row">
+        <div>
+          <h1 id="scan-title">ID Scanner</h1>
+          <p>Keep the bottom passport code lines flat, sharp, and fully visible.</p>
+        </div>
+        <span class="status-pill" id="statusPill">Ready</span>
+      </div>
 
-body {
-  margin: 0;
-  min-height: 100vh;
-  font-family: Arial, Helvetica, sans-serif;
-  background: linear-gradient(180deg, #ffffff 0%, #f3f6fb 100%);
-  color: var(--ink);
-}
+      <label class="camera-button" for="documentInput">
+        <span>Take Photo or Upload</span>
+        <input id="documentInput" type="file" accept="image/*" capture="environment">
+      </label>
 
-button,
-input {
-  font: inherit;
-}
+      <div class="preview-wrap" id="previewWrap" hidden>
+        <img id="previewImage" alt="Selected document preview">
+      </div>
 
-.app-shell {
-  width: min(100%, 520px);
-  min-height: 100vh;
-  margin: 0 auto;
-  padding: max(18px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
-}
+      <div class="progress" id="progressWrap" hidden>
+        <div class="progress-bar"><span id="progressBar"></span></div>
+        <p id="progressText">Preparing scan...</p>
+      </div>
+    </section>
 
-.brand {
-  padding: 12px 10px 18px;
-  text-align: center;
-}
+    <section class="results-panel" aria-labelledby="results-title">
+      <div class="section-head">
+        <h2 id="results-title">Extracted Data</h2>
+        <button id="clearButton" type="button">Clear</button>
+      </div>
 
-.brand img {
-  display: block;
-  width: min(100%, 360px);
-  height: auto;
-  margin: 0 auto;
-}
+      <form class="fields" autocomplete="off">
+        <label>Surname<input id="field-surname" name="surname"></label>
+        <label>Other Name / Given Name<input id="field-givenNames" name="givenNames"></label>
+        <label>Birth Date<input id="field-birthDate" name="birthDate"></label>
+        <label>Gender<input id="field-gender" name="gender"></label>
+        <label>Nationality<input id="field-nationality" name="nationality"></label>
+        <label>Expiration Date<input id="field-expirationDate" name="expirationDate"></label>
+      </form>
 
-.scan-panel,
-.results-panel {
-  background: var(--panel);
-  border: 1px solid rgba(11, 61, 145, 0.12);
-  border-radius: 8px;
-  box-shadow: var(--shadow);
-}
+      <div class="review-warning" id="reviewWarning" hidden></div>
 
-.scan-panel {
-  padding: 18px;
-}
+      <div class="mrz-box">
+        <label for="mrzInput">Passport Code Lines</label>
+        <textarea id="mrzInput" rows="3" spellcheck="false" placeholder="If the scan is wrong, type or correct the two code lines at the bottom of the passport."></textarea>
+        <button id="parseMrzButton" type="button">Read Code Lines</button>
+      </div>
 
-.results-panel {
-  margin-top: 14px;
-  padding: 16px;
-}
+      <label class="review-check">
+        <input id="reviewConfirm" type="checkbox">
+        <span>I checked these fields against the document.</span>
+      </label>
 
-.title-row,
-.section-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
+      <details class="raw-text">
+        <summary>Review OCR text</summary>
+        <pre id="rawText"></pre>
+      </details>
+    </section>
 
-h1,
-h2,
-p {
-  margin: 0;
-}
+    <section class="results-panel saved-panel" aria-labelledby="saved-title">
+      <div class="section-head">
+        <h2 id="saved-title">Saved Scans</h2>
+        <button id="saveButton" type="button">Save</button>
+      </div>
 
-h1 {
-  font-size: 1.45rem;
-  line-height: 1.1;
-}
+      <div class="export-actions">
+        <button id="csvButton" type="button">Excel CSV</button>
+        <button id="wordButton" type="button">Word Doc</button>
+      </div>
 
-h2 {
-  font-size: 1rem;
-}
-
-.title-row p {
-  margin-top: 6px;
-  color: var(--muted);
-  font-size: 0.92rem;
-  line-height: 1.35;
-}
-
-.status-pill {
-  flex: 0 0 auto;
-  padding: 7px 10px;
-  border-radius: 999px;
-  background: #edf3ff;
-  color: var(--blue);
-  font-weight: 700;
-  font-size: 0.78rem;
-}
-
-.camera-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 54px;
-  margin-top: 18px;
-  border-radius: 8px;
-  background: var(--blue);
-  color: #fff;
-  font-weight: 800;
-  letter-spacing: 0;
-  box-shadow: 0 12px 26px rgba(11, 61, 145, 0.22);
-}
-
-.camera-button input {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.preview-wrap {
-  margin-top: 16px;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  background: var(--soft);
-}
-
-.preview-wrap img {
-  display: block;
-  width: 100%;
-  max-height: 320px;
-  object-fit: contain;
-}
-
-.progress {
-  margin-top: 16px;
-}
-
-.progress-bar {
-  height: 10px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: #e8edf5;
-}
-
-.progress-bar span {
-  display: block;
-  width: 0%;
-  height: 100%;
-  background: linear-gradient(90deg, var(--blue), var(--red));
-  transition: width 180ms ease;
-}
-
-.progress p {
-  margin-top: 8px;
-  color: var(--muted);
-  font-size: 0.86rem;
-}
-
-.section-head button {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fff;
-  color: var(--blue);
-  min-height: 36px;
-  padding: 0 12px;
-  font-weight: 700;
-}
-
-.export-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 14px;
-}
-
-.export-actions button,
-#saveButton {
-  border: 0;
-  border-radius: 8px;
-  background: var(--red);
-  color: #fff;
-  min-height: 40px;
-  padding: 0 12px;
-  font-weight: 800;
-}
-
-.export-actions button:first-child {
-  background: var(--blue);
-}
-
-.fields {
-  display: grid;
-  gap: 10px;
-  margin-top: 14px;
-}
-
-.fields label {
-  display: grid;
-  gap: 5px;
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.fields input {
-  width: 100%;
-  min-height: 45px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px 12px;
-  background: var(--soft);
-  color: var(--ink);
-  font-size: 1rem;
-  font-weight: 700;
-}
-
-.review-warning {
-  margin-top: 14px;
-  border: 1px solid rgba(231, 25, 33, 0.28);
-  border-radius: 8px;
-  background: #fff3f4;
-  color: #8c1016;
-  padding: 11px 12px;
-  font-size: 0.9rem;
-  line-height: 1.35;
-}
-
-.mrz-box {
-  display: grid;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.mrz-box label,
-.review-check {
-  color: var(--muted);
-  font-size: 0.82rem;
-  font-weight: 800;
-}
-
-.mrz-box textarea {
-  width: 100%;
-  min-height: 84px;
-  resize: vertical;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px 12px;
-  background: #fff;
-  color: var(--ink);
-  font-family: "Courier New", monospace;
-  font-size: 0.92rem;
-  text-transform: uppercase;
-}
-
-.mrz-box button {
-  min-height: 42px;
-  border: 0;
-  border-radius: 8px;
-  background: var(--blue);
-  color: #fff;
-  font-weight: 800;
-}
-
-.review-check {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin-top: 14px;
-  line-height: 1.3;
-  text-transform: none;
-}
-
-.review-check input {
-  width: 18px;
-  height: 18px;
-  accent-color: var(--blue);
-}
-
-.raw-text {
-  margin-top: 14px;
-  border-top: 1px solid var(--line);
-  padding-top: 12px;
-}
-
-.raw-text summary {
-  color: var(--blue);
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.raw-text pre {
-  max-height: 220px;
-  overflow: auto;
-  white-space: pre-wrap;
-  color: #39455a;
-  background: var(--soft);
-  border-radius: 8px;
-  padding: 12px;
-}
-
-.saved-list {
-  display: grid;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.saved-list p {
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
-.saved-record {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px;
-  background: var(--soft);
-}
-
-.saved-record strong {
-  display: block;
-  font-size: 0.95rem;
-}
-
-.saved-record span {
-  display: block;
-  margin-top: 4px;
-  color: var(--muted);
-  font-size: 0.82rem;
-}
-
-@media (min-width: 700px) {
-  .app-shell {
-    padding-top: 28px;
-  }
-}
+      <div class="saved-list" id="savedList">
+        <p>No saved scans yet.</p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
