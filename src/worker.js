@@ -39,9 +39,15 @@ async function handleExtract(request, env) {
               {
                 type: "input_text",
                 text: [
-                  "Extract passport or identity document data from this image.",
-                  "Use visible fields and MRZ/passport code lines to verify each value.",
-                  "Return only JSON. If a value is unclear or conflicts, use an empty string and explain in warning.",
+                  "Extract passport or identity document data from this image for travel office data entry.",
+                  "Important: prioritize the visible passport fields, not the MRZ. Sri Lankan names can be long and the MRZ may compress, truncate, or split them.",
+                  "Read Surname and Given names/Other names from the printed visible field labels on the passport page.",
+                  "Use the MRZ/passport code lines only as a secondary backup for dates, nationality, gender, and to cross-check names. Do not replace a longer visible name with a shorter MRZ version.",
+                  "Names may contain multiple words and long Sri Lankan name parts. Preserve the full visible spelling and spacing as much as possible.",
+                  "Do not leave name fields blank if there is readable visible-field evidence. Give the best possible reading from the visible fields.",
+                  "If a name is blurry, partly hidden, or conflicts with MRZ, still return your best visible-field reading and explain the uncertainty in warning.",
+                  "Do not output document numbers, issue dates, addresses, places of birth, authority, or any extra fields.",
+                  "Return only JSON. If any value is unclear or conflicts, return the best likely value and explain in warning.",
                   "Required JSON keys in this exact order: surname, givenNames, birthDate, gender, nationality, expirationDate, warning.",
                   "Dates must be YYYY-MM-DD when possible. gender must be Male, Female, or Unspecified.",
                 ].join(" "),

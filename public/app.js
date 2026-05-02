@@ -1,4 +1,5 @@
-const input = document.getElementById("documentInput");
+const cameraInput = document.getElementById("cameraInput");
+const uploadInput = document.getElementById("uploadInput");
 const previewWrap = document.getElementById("previewWrap");
 const previewImage = document.getElementById("previewImage");
 const progressWrap = document.getElementById("progressWrap");
@@ -26,7 +27,21 @@ const fields = {
   expirationDate: document.getElementById("field-expirationDate"),
 };
 
-input.addEventListener("change", async (event) => {
+const finalFields = {
+  surname: document.getElementById("final-surname"),
+  givenNames: document.getElementById("final-givenNames"),
+  birthDate: document.getElementById("final-birthDate"),
+  nationality: document.getElementById("final-nationality"),
+  expirationDate: document.getElementById("final-expirationDate"),
+};
+
+cameraInput.addEventListener("change", handleFileSelection);
+uploadInput.addEventListener("change", handleFileSelection);
+Object.values(fields).forEach((field) => {
+  field.addEventListener("input", updateFinalCard);
+});
+
+async function handleFileSelection(event) {
   const file = event.target.files?.[0];
   if (!file) return;
 
@@ -40,7 +55,7 @@ input.addEventListener("change", async (event) => {
     const apiData = await extractWithOpenAi(file);
     if (apiData) {
       fillFields(apiData);
-      rawText.textContent = "Extracted with OpenAI vision. Review all fields before saving.";
+      rawText.textContent = "Extracted from visible passport fields with OpenAI vision. Review all fields before saving.";
       mrzInput.value = "";
       setWorking("Review", 100, "API extraction complete. Confirm every field before saving.");
       return;
@@ -59,10 +74,11 @@ input.addEventListener("change", async (event) => {
     statusPill.textContent = "Error";
     progressText.textContent = error.message || "Could not scan this image.";
   }
-});
+}
 
 clearButton.addEventListener("click", () => {
-  input.value = "";
+  cameraInput.value = "";
+  uploadInput.value = "";
   previewImage.removeAttribute("src");
   previewWrap.hidden = true;
   progressWrap.hidden = true;
@@ -73,6 +89,7 @@ clearButton.addEventListener("click", () => {
   mrzInput.value = "";
   reviewConfirm.checked = false;
   resetFields();
+  updateFinalCard();
 });
 
 parseMrzButton.addEventListener("click", () => {
@@ -225,15 +242,17 @@ function resetFields() {
   Object.values(fields).forEach((field) => {
     field.value = "";
   });
+  updateFinalCard();
 }
 
 function fillFields(data) {
   fields.surname.value = data.surname || "";
   fields.givenNames.value = data.givenNames || "";
-  fields.birthDate.value = data.birthDate || "";
+  fields.birthDate.value = formatDisplayDate(data.birthDate);
   fields.gender.value = data.gender || "";
   fields.nationality.value = data.nationality || "";
-  fields.expirationDate.value = data.expirationDate || "";
+  fields.expirationDate.value = formatDisplayDate(data.expirationDate);
+  updateFinalCard();
 
   if (data.warning) {
     reviewWarning.textContent = data.warning;
@@ -242,6 +261,15 @@ function fillFields(data) {
     reviewWarning.textContent = "";
     reviewWarning.hidden = true;
   }
+}
+
+function updateFinalCard() {
+  const record = currentRecord();
+  finalFields.surname.textContent = record.surname || "-";
+  finalFields.givenNames.textContent = record.givenNames || "-";
+  finalFields.birthDate.textContent = [record.birthDate, shortGender(record.gender)].filter(Boolean).join(" / ") || "-";
+  finalFields.nationality.textContent = record.nationality || "-";
+  finalFields.expirationDate.textContent = record.expirationDate || "-";
 }
 
 async function scanDocument(file) {
@@ -395,6 +423,37 @@ function formatSavedAt(value) {
   return new Date(value).toLocaleString();
 }
 
+function formatDisplayDate(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) {
+    return `${iso[3]} ${monthName(iso[2])} ${iso[1].slice(-2)}`;
+  }
+
+  const slash = text.match(/^(\d{1,2})[\/\-. ](\d{1,2})[\/\-. ](\d{2,4})$/);
+  if (slash) {
+    return `${slash[2].padStart(2, "0")} ${monthName(slash[1])} ${slash[3].slice(-2)}`;
+  }
+
+  return text;
+}
+
+function shortGender(value) {
+  const gender = String(value || "").trim().toUpperCase();
+  if (gender === "MALE" || gender === "M") return "M";
+  if (gender === "FEMALE" || gender === "F") return "F";
+  if (gender === "UNSPECIFIED" || gender === "X") return "X";
+  return value || "";
+}
+
+function monthName(value) {
+  const month = Number(value);
+  const names = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  return names[month - 1] || "";
+}
+
 function escapeHtml(value) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -409,8 +468,8 @@ function extractDocumentData(text) {
   const mrz = parseMrz(normalized);
   const visual = parseVisualFields(normalized);
 
-  const surname = reliableName(mrz.surname) || reliableName(visual.surname);
-  const givenNames = reliableName(mrz.givenNames) || reliableName(visual.givenNames);
+  const surname = reliableName(visual.surname) || reliableName(mrz.surname);
+  const givenNames = reliableName(visual.givenNames) || reliableName(mrz.givenNames);
   const warning = buildWarning(mrz, surname, givenNames);
 
   return {
@@ -427,10 +486,11 @@ function extractDocumentData(text) {
 function reliableName(value) {
   const name = (value || "").trim();
   if (!name) return "";
-  if (/\d/.test(name)) return "";
-  if (/[^A-Za-z .'-]/.test(name)) return "";
-  if (/[bcdfghjklmnpqrstvwxyz]{6,}/i.test(name.replace(/\s+/g, ""))) return "";
-  return name;
+  return name
+    .replace(/\d/g, "")
+    .replace(/[^A-Za-z .'-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function buildWarning(mrz, surname, givenNames) {

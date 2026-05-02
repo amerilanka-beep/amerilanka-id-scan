@@ -43,7 +43,7 @@ Dashboard path:
 9. Redeploy the project after adding the secret.
 
 With Wrangler:
- 
+
 ```powershell
 npx wrangler login
 npx wrangler secret put OPENAI_API_KEY

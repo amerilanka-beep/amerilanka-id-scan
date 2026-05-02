@@ -19,15 +19,21 @@
       <div class="title-row">
         <div>
           <h1 id="scan-title">ID Scanner</h1>
-          <p>Keep the bottom passport code lines flat, sharp, and fully visible.</p>
+          <p>Capture the visible name fields clearly. The bottom code is only a backup check.</p>
         </div>
         <span class="status-pill" id="statusPill">Ready</span>
       </div>
 
-      <label class="camera-button" for="documentInput">
-        <span>Take Photo or Upload</span>
-        <input id="documentInput" type="file" accept="image/*" capture="environment">
-      </label>
+      <div class="scan-actions">
+        <label class="camera-button" for="cameraInput">
+          <span>Take Photo</span>
+          <input id="cameraInput" type="file" accept="image/*" capture="environment">
+        </label>
+        <label class="upload-button" for="uploadInput">
+          <span>Upload Photo</span>
+          <input id="uploadInput" type="file" accept="image/*">
+        </label>
+      </div>
 
       <div class="preview-wrap" id="previewWrap" hidden>
         <img id="previewImage" alt="Selected document preview">
@@ -54,10 +60,21 @@
         <label>Expiration Date<input id="field-expirationDate" name="expirationDate"></label>
       </form>
 
+      <div class="final-card" aria-labelledby="final-title">
+        <h3 id="final-title">Final Data</h3>
+        <dl>
+          <div><dt>Surname</dt><dd id="final-surname">-</dd></div>
+          <div><dt>Other Name / Given Name</dt><dd id="final-givenNames">-</dd></div>
+          <div><dt>Birth Date / Gender</dt><dd id="final-birthDate">-</dd></div>
+          <div><dt>Nationality</dt><dd id="final-nationality">-</dd></div>
+          <div><dt>Expiration Date</dt><dd id="final-expirationDate">-</dd></div>
+        </dl>
+      </div>
+
       <div class="review-warning" id="reviewWarning" hidden></div>
 
       <div class="mrz-box">
-        <label for="mrzInput">Passport Code Lines</label>
+        <label for="mrzInput">Backup Passport Code Lines</label>
         <textarea id="mrzInput" rows="3" spellcheck="false" placeholder="If the scan is wrong, type or correct the two code lines at the bottom of the passport."></textarea>
         <button id="parseMrzButton" type="button">Read Code Lines</button>
       </div>

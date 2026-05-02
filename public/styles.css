@@ -23,7 +23,8 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
 }
 
@@ -103,21 +104,37 @@ h2 {
   font-size: 0.78rem;
 }
 
-.camera-button {
+.scan-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.camera-button,
+.upload-button {
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 54px;
-  margin-top: 18px;
   border-radius: 8px;
-  background: var(--blue);
   color: #fff;
   font-weight: 800;
   letter-spacing: 0;
+}
+
+.camera-button {
+  background: var(--blue);
   box-shadow: 0 12px 26px rgba(11, 61, 145, 0.22);
 }
 
-.camera-button input {
+.upload-button {
+  background: #168365;
+  box-shadow: 0 12px 26px rgba(22, 131, 101, 0.2);
+}
+
+.camera-button input,
+.upload-button input {
   position: absolute;
   inline-size: 1px;
   block-size: 1px;
@@ -222,6 +239,50 @@ h2 {
   color: var(--ink);
   font-size: 1rem;
   font-weight: 700;
+}
+
+.final-card {
+  margin-top: 14px;
+  border-radius: 8px;
+  background: #0f766e;
+  color: #fff;
+  padding: 13px;
+}
+
+.final-card h3 {
+  margin: 0 0 10px;
+  font-size: 0.98rem;
+}
+
+.final-card dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.final-card div {
+  display: grid;
+  gap: 2px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.final-card div:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.final-card dt {
+  font-size: 0.72rem;
+  font-weight: 800;
+  opacity: 0.82;
+  text-transform: uppercase;
+}
+
+.final-card dd {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
 }
 
 .review-warning {
