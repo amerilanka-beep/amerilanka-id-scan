@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <title>AmeriLanka ID Scan</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="brand">
+      <img src="assets/amerilanka-logo.png" alt="AmeriLanka Travels">
+    </header>
+
+    <section class="scan-panel" aria-labelledby="scan-title">
+      <div class="title-row">
+        <div>
+          <h1 id="scan-title">ID Scanner</h1>
+          <p>Keep the bottom passport code lines flat, sharp, and fully visible.</p>
+        </div>
+        <span class="status-pill" id="statusPill">Ready</span>
+      </div>
+
+      <label class="camera-button" for="documentInput">
+        <span>Take Photo or Upload</span>
+        <input id="documentInput" type="file" accept="image/*" capture="environment">
+      </label>
+
+      <div class="preview-wrap" id="previewWrap" hidden>
+        <img id="previewImage" alt="Selected document preview">
+      </div>
+
+      <div class="progress" id="progressWrap" hidden>
+        <div class="progress-bar"><span id="progressBar"></span></div>
+        <p id="progressText">Preparing scan...</p>
+      </div>
+    </section>
+
+    <section class="results-panel" aria-labelledby="results-title">
+      <div class="section-head">
+        <h2 id="results-title">Extracted Data</h2>
+        <button id="clearButton" type="button">Clear</button>
+      </div>
+
+      <form class="fields" autocomplete="off">
+        <label>Surname<input id="field-surname" name="surname"></label>
+        <label>Other Name / Given Name<input id="field-givenNames" name="givenNames"></label>
+        <label>Birth Date<input id="field-birthDate" name="birthDate"></label>
+        <label>Gender<input id="field-gender" name="gender"></label>
+        <label>Nationality<input id="field-nationality" name="nationality"></label>
+        <label>Expiration Date<input id="field-expirationDate" name="expirationDate"></label>
+      </form>
+
+      <div class="review-warning" id="reviewWarning" hidden></div>
+
+      <div class="mrz-box">
+        <label for="mrzInput">Passport Code Lines</label>
+        <textarea id="mrzInput" rows="3" spellcheck="false" placeholder="If the scan is wrong, type or correct the two code lines at the bottom of the passport."></textarea>
+        <button id="parseMrzButton" type="button">Read Code Lines</button>
+      </div>
+
+      <label class="review-check">
+        <input id="reviewConfirm" type="checkbox">
+        <span>I checked these fields against the document.</span>
+      </label>
+
+      <details class="raw-text">
+        <summary>Review OCR text</summary>
+        <pre id="rawText"></pre>
+      </details>
+    </section>
+
+    <section class="results-panel saved-panel" aria-labelledby="saved-title">
+      <div class="section-head">
+        <h2 id="saved-title">Saved Scans</h2>
+        <button id="saveButton" type="button">Save</button>
+      </div>
+
+      <div class="export-actions">
+        <button id="csvButton" type="button">Excel CSV</button>
+        <button id="wordButton" type="button">Word Doc</button>
+      </div>
+
+      <div class="saved-list" id="savedList">
+        <p>No saved scans yet.</p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
