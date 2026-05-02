@@ -7,13 +7,12 @@ const progressBar = document.getElementById("progressBar");
 const progressText = document.getElementById("progressText");
 const statusPill = document.getElementById("statusPill");
 const clearButton = document.getElementById("clearButton");
+const copyFinalButton = document.getElementById("copyFinalButton");
 const saveButton = document.getElementById("saveButton");
 const csvButton = document.getElementById("csvButton");
 const wordButton = document.getElementById("wordButton");
 const savedList = document.getElementById("savedList");
 const reviewWarning = document.getElementById("reviewWarning");
-const mrzInput = document.getElementById("mrzInput");
-const parseMrzButton = document.getElementById("parseMrzButton");
 const reviewConfirm = document.getElementById("reviewConfirm");
 const rawText = document.getElementById("rawText");
 const storageKey = "amerilanka-id-scans";
@@ -27,13 +26,7 @@ const fields = {
   expirationDate: document.getElementById("field-expirationDate"),
 };
 
-const finalFields = {
-  surname: document.getElementById("final-surname"),
-  givenNames: document.getElementById("final-givenNames"),
-  birthDate: document.getElementById("final-birthDate"),
-  nationality: document.getElementById("final-nationality"),
-  expirationDate: document.getElementById("final-expirationDate"),
-};
+const finalText = document.getElementById("finalText");
 
 cameraInput.addEventListener("change", handleFileSelection);
 uploadInput.addEventListener("change", handleFileSelection);
@@ -52,29 +45,38 @@ async function handleFileSelection(event) {
 
   try {
     setWorking("Scanning", 5, "Loading passport scanner...");
-    const apiData = await extractWithOpenAi(file);
-    if (apiData) {
+    const apiResult = await extractWithOpenAi(file);
+    if (apiResult.data) {
+      const apiData = apiResult.data;
       fillFields(apiData);
-      rawText.textContent = "Extracted from visible passport fields with OpenAI vision. Review all fields before saving.";
-      mrzInput.value = "";
-      setWorking("Review", 100, "API extraction complete. Confirm every field before saving.");
+      rawText.textContent = `Extracted with Source ${sourceNumber(apiResult.provider)}. Review all fields before saving.`;
+      setWorking("Review", 100, `Source ${sourceNumber(apiResult.provider)} extraction complete. Confirm every field before saving.`);
       return;
     }
 
-    if (!window.Tesseract) {
-      throw new Error("OCR engine did not load. Check internet connection and refresh.");
-    }
-
-    const text = await scanDocument(file);
-    rawText.textContent = text.trim();
-    mrzInput.value = getBestMrzLines(text).join("\n");
-    fillFields(extractDocumentData(text));
-    setWorking("Review", 100, "Scan complete. Confirm every field before saving.");
+    rawText.textContent = apiResult.error || "OpenAI extraction did not return a readable result.";
+    reviewWarning.textContent = "Passport extraction failed. No backup OCR was used, so no unreliable data was filled.";
+    reviewWarning.hidden = false;
+    setWorking("API Error", 100, "Passport extraction failed. Check the API key or try a clearer passport image.");
+    return;
   } catch (error) {
     statusPill.textContent = "Error";
     progressText.textContent = error.message || "Could not scan this image.";
   }
 }
+
+copyFinalButton.addEventListener("click", async () => {
+  const text = buildFinalText();
+  try {
+    await navigator.clipboard.writeText(text);
+    copyFinalButton.textContent = "Copied";
+    setTimeout(() => {
+      copyFinalButton.textContent = "Copy";
+    }, 1400);
+  } catch {
+    copyFinalButton.textContent = "Select";
+  }
+});
 
 clearButton.addEventListener("click", () => {
   cameraInput.value = "";
@@ -86,19 +88,9 @@ clearButton.addEventListener("click", () => {
   rawText.textContent = "";
   reviewWarning.hidden = true;
   reviewWarning.textContent = "";
-  mrzInput.value = "";
   reviewConfirm.checked = false;
   resetFields();
   updateFinalCard();
-});
-
-parseMrzButton.addEventListener("click", () => {
-  const parsed = extractDocumentData(mrzInput.value);
-  fillFields(parsed);
-  reviewConfirm.checked = false;
-  progressWrap.hidden = false;
-  statusPill.textContent = "Review";
-  progressText.textContent = "Code lines parsed. Check every field before saving.";
 });
 
 saveButton.addEventListener("click", () => {
@@ -206,12 +198,21 @@ async function extractWithOpenAi(file) {
       body: JSON.stringify({ imageData }),
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      const errorPayload = await response.json().catch(() => ({}));
+      return { data: null, error: errorPayload.error || `OpenAI request failed (${response.status}).` };
+    }
     const payload = await response.json();
-    return payload.data || null;
+    return { data: payload.data || null, error: payload.error || "", provider: payload.provider || "" };
   } catch {
-    return null;
+    return { data: null, error: "Could not reach the passport extraction service." };
   }
+}
+
+function sourceNumber(provider) {
+  if (provider === "mindee") return "1";
+  if (provider === "openai") return "2";
+  return "2";
 }
 
 function fileToDataUrl(file) {
@@ -264,85 +265,18 @@ function fillFields(data) {
 }
 
 function updateFinalCard() {
+  finalText.textContent = buildFinalText() || "-";
+}
+
+function buildFinalText() {
   const record = currentRecord();
-  finalFields.surname.textContent = record.surname || "-";
-  finalFields.givenNames.textContent = record.givenNames || "-";
-  finalFields.birthDate.textContent = [record.birthDate, shortGender(record.gender)].filter(Boolean).join(" / ") || "-";
-  finalFields.nationality.textContent = record.nationality || "-";
-  finalFields.expirationDate.textContent = record.expirationDate || "-";
-}
-
-async function scanDocument(file) {
-  const fullImage = await createEnhancedImage(file, { cropTop: 0, cropHeight: 1, scaleBoost: 2 });
-  const lowerHalf = await createEnhancedImage(file, { cropTop: 0.48, cropHeight: 0.52, scaleBoost: 3 });
-  const bottomMrz = await createEnhancedImage(file, { cropTop: 0.62, cropHeight: 0.38, scaleBoost: 4 });
-
-  const mrzTight = await recognizeImage(bottomMrz, "Checking passport code lines", {
-    tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<",
-    preserve_interword_spaces: "1",
-  });
-  const mrzWide = await recognizeImage(lowerHalf, "Reading passport code lines", {
-    tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<",
-    preserve_interword_spaces: "1",
-  });
-  const full = await recognizeImage(fullImage, "Reading full document", {});
-
-  return [mrzTight, mrzWide, full].filter(Boolean).join("\n");
-}
-
-async function recognizeImage(image, label, parameters) {
-  setWorking("Scanning", 12, label);
-  const result = await Tesseract.recognize(image, "eng", {
-    logger: (message) => updateProgress(message),
-    ...(Object.keys(parameters).length ? { tessedit_pageseg_mode: "6", tessedit_ocr_engine_mode: "1" } : {}),
-    ...parameters,
-  });
-  return result.data.text || "";
-}
-
-function createEnhancedImage(file, options = {}) {
-  return new Promise((resolve) => {
-    const cropTop = options.cropTop ?? 0;
-    const cropHeight = options.cropHeight ?? 1;
-    const scaleBoost = options.scaleBoost ?? 2;
-    const image = new Image();
-    const url = URL.createObjectURL(file);
-
-    image.onload = () => {
-      const sourceY = Math.round(image.height * cropTop);
-      const sourceHeight = Math.round(image.height * cropHeight);
-      const maxWidth = 2200;
-      const scale = Math.min(scaleBoost, maxWidth / image.width || 1);
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(image.width * scale);
-      canvas.height = Math.round(sourceHeight * scale);
-
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      ctx.drawImage(image, 0, sourceY, image.width, sourceHeight, 0, 0, canvas.width, canvas.height);
-
-      const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      for (let i = 0; i < pixels.data.length; i += 4) {
-        const gray = pixels.data[i] * 0.299 + pixels.data[i + 1] * 0.587 + pixels.data[i + 2] * 0.114;
-        const boosted = gray > 175 ? 255 : Math.max(0, Math.min(255, (gray - 128) * 1.85 + 128));
-        pixels.data[i] = boosted;
-        pixels.data[i + 1] = boosted;
-        pixels.data[i + 2] = boosted;
-      }
-      ctx.putImageData(pixels, 0, 0);
-
-      canvas.toBlob((blob) => {
-        URL.revokeObjectURL(url);
-        resolve(blob || file);
-      }, "image/png");
-    };
-
-    image.onerror = () => {
-      URL.revokeObjectURL(url);
-      resolve(file);
-    };
-
-    image.src = url;
-  });
+  return [
+    record.surname,
+    record.givenNames,
+    [record.birthDate, shortGender(record.gender)].filter(Boolean).join(" / "),
+    record.nationality,
+    record.expirationDate,
+  ].filter(Boolean).join("\n");
 }
 
 function currentRecord() {

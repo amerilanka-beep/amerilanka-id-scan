@@ -6,7 +6,6 @@
   <meta name="theme-color" content="#ffffff">
   <title>AmeriLanka ID Scan</title>
   <link rel="stylesheet" href="styles.css">
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -43,6 +42,7 @@
         <div class="progress-bar"><span id="progressBar"></span></div>
         <p id="progressText">Preparing scan...</p>
       </div>
+
     </section>
 
     <section class="results-panel" aria-labelledby="results-title">
@@ -61,23 +61,14 @@
       </form>
 
       <div class="final-card" aria-labelledby="final-title">
-        <h3 id="final-title">Final Data</h3>
-        <dl>
-          <div><dt>Surname</dt><dd id="final-surname">-</dd></div>
-          <div><dt>Other Name / Given Name</dt><dd id="final-givenNames">-</dd></div>
-          <div><dt>Birth Date / Gender</dt><dd id="final-birthDate">-</dd></div>
-          <div><dt>Nationality</dt><dd id="final-nationality">-</dd></div>
-          <div><dt>Expiration Date</dt><dd id="final-expirationDate">-</dd></div>
-        </dl>
+        <div class="final-head">
+          <h3 id="final-title">Copy Data</h3>
+          <button id="copyFinalButton" type="button">Copy</button>
+        </div>
+        <pre id="finalText">-</pre>
       </div>
 
       <div class="review-warning" id="reviewWarning" hidden></div>
-
-      <div class="mrz-box">
-        <label for="mrzInput">Backup Passport Code Lines</label>
-        <textarea id="mrzInput" rows="3" spellcheck="false" placeholder="If the scan is wrong, type or correct the two code lines at the bottom of the passport."></textarea>
-        <button id="parseMrzButton" type="button">Read Code Lines</button>
-      </div>
 
       <label class="review-check">
         <input id="reviewConfirm" type="checkbox">

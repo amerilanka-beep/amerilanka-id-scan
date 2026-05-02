@@ -249,40 +249,36 @@ h2 {
   padding: 13px;
 }
 
+.final-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
 .final-card h3 {
-  margin: 0 0 10px;
+  margin: 0;
   font-size: 0.98rem;
 }
 
-.final-card dl {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-}
-
-.final-card div {
-  display: grid;
-  gap: 2px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
-}
-
-.final-card div:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
-}
-
-.final-card dt {
-  font-size: 0.72rem;
+.final-head button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f766e;
+  padding: 0 12px;
   font-weight: 800;
-  opacity: 0.82;
-  text-transform: uppercase;
 }
 
-.final-card dd {
+.final-card pre {
   margin: 0;
-  font-size: 1rem;
+  white-space: pre-wrap;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 1.05rem;
   font-weight: 800;
+  line-height: 1.65;
 }
 
 .review-warning {
