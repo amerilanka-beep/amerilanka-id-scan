@@ -241,12 +241,23 @@ h2 {
   font-weight: 700;
 }
 
+.fields input.danger-field {
+  border-color: var(--red);
+  background: #fff3f4;
+  color: #8c1016;
+  box-shadow: 0 0 0 3px rgba(231, 25, 33, 0.12);
+}
+
 .final-card {
   margin-top: 14px;
   border-radius: 8px;
   background: #0f766e;
   color: #fff;
   padding: 13px;
+}
+
+.final-card.danger-card {
+  background: #b91c1c;
 }
 
 .final-head {
@@ -279,6 +290,10 @@ h2 {
   font-size: 1.05rem;
   font-weight: 800;
   line-height: 1.65;
+}
+
+.final-card pre.danger-text {
+  color: #fff7f7;
 }
 
 .review-warning {

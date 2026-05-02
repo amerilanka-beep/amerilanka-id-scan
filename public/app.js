@@ -93,7 +93,7 @@ clearButton.addEventListener("click", () => {
   updateFinalCard();
 });
 
-saveButton.addEventListener("click", () => {
+saveButton.addEventListener("click", async () => {
   const record = currentRecord();
   if (!hasRecordData(record)) {
     statusPill.textContent = "Empty";
@@ -110,10 +110,21 @@ saveButton.addEventListener("click", () => {
   }
 
   const saved = getSavedRecords();
-  saved.unshift({ ...record, savedAt: new Date().toISOString() });
+  const savedAt = new Date().toISOString();
+  const copyBox = buildFinalText();
+  saved.unshift({ ...record, copyBox, savedAt });
   localStorage.setItem(storageKey, JSON.stringify(saved));
   renderSavedRecords();
   statusPill.textContent = "Saved";
+  progressWrap.hidden = false;
+  progressText.textContent = "Saved on this device.";
+
+  const onlineSaved = await saveOnlineRecord({ ...record, copyBox, savedAt });
+  if (onlineSaved.ok) {
+    progressText.textContent = "Saved on this device and Google Sheet.";
+  } else if (onlineSaved.configured) {
+    progressText.textContent = "Saved on this device. Google Sheet save failed.";
+  }
 });
 
 csvButton.addEventListener("click", () => {
@@ -215,6 +226,22 @@ function sourceNumber(provider) {
   return "2";
 }
 
+async function saveOnlineRecord(record) {
+  try {
+    const response = await fetch("/api/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(record),
+    });
+    if (response.status === 204) {
+      return { ok: false, configured: false };
+    }
+    return { ok: response.ok, configured: true };
+  } catch {
+    return { ok: false, configured: true };
+  }
+}
+
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -255,8 +282,10 @@ function fillFields(data) {
   fields.expirationDate.value = formatDisplayDate(data.expirationDate);
   updateFinalCard();
 
-  if (data.warning) {
-    reviewWarning.textContent = data.warning;
+  const expirationWarning = passportExpirationWarning(fields.expirationDate.value);
+  const warnings = [data.warning, expirationWarning].filter(Boolean);
+  if (warnings.length) {
+    reviewWarning.textContent = warnings.join(" ");
     reviewWarning.hidden = false;
   } else {
     reviewWarning.textContent = "";
@@ -265,18 +294,28 @@ function fillFields(data) {
 }
 
 function updateFinalCard() {
+  const expirationWarning = passportExpirationWarning(fields.expirationDate.value);
+  fields.expirationDate.classList.toggle("danger-field", Boolean(expirationWarning));
+  finalText.classList.toggle("danger-text", Boolean(expirationWarning));
+  finalText.parentElement.classList.toggle("danger-card", Boolean(expirationWarning));
   finalText.textContent = buildFinalText() || "-";
 }
 
 function buildFinalText() {
   const record = currentRecord();
-  return [
+  const lines = [
     record.surname,
     record.givenNames,
-    [record.birthDate, shortGender(record.gender)].filter(Boolean).join(" / "),
+    [record.birthDate, fullGender(record.gender)].filter(Boolean).join(" / "),
     record.nationality,
     record.expirationDate,
-  ].filter(Boolean).join("\n");
+  ].filter(Boolean);
+
+  if (passportExpirationWarning(record.expirationDate)) {
+    lines.push("EXPIRING SOON");
+  }
+
+  return lines.join("\n");
 }
 
 function currentRecord() {
@@ -374,6 +413,59 @@ function formatDisplayDate(value) {
   return text;
 }
 
+function passportExpirationWarning(value) {
+  const expirationDate = parseDisplayedDate(value);
+  if (!expirationDate) return "";
+
+  const today = startOfDay(new Date());
+  const sixMonthsFromToday = new Date(today);
+  sixMonthsFromToday.setMonth(sixMonthsFromToday.getMonth() + 6);
+
+  if (expirationDate < today) return "PASSPORT EXPIRED.";
+  if (expirationDate <= sixMonthsFromToday) return "EXPIRING SOON.";
+  return "";
+}
+
+function parseDisplayedDate(value) {
+  const text = String(value || "").trim();
+  if (!text) return null;
+
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return validDate(Number(iso[1]), Number(iso[2]), Number(iso[3]));
+
+  const named = text.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{2}|\d{4})$/);
+  if (named) {
+    const year = expandYear(named[3]);
+    return validDate(year, monthNumber(named[2]), Number(named[1]));
+  }
+
+  const slash = text.match(/^(\d{1,2})[\/\-. ](\d{1,2})[\/\-. ](\d{2}|\d{4})$/);
+  if (slash) {
+    return validDate(expandYear(slash[3]), Number(slash[2]), Number(slash[1]));
+  }
+
+  return null;
+}
+
+function validDate(year, month, day) {
+  if (!year || !month || !day) return null;
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+    return null;
+  }
+  return startOfDay(date);
+}
+
+function expandYear(value) {
+  const text = String(value);
+  if (text.length === 4) return Number(text);
+  return 2000 + Number(text);
+}
+
+function startOfDay(value) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
 function shortGender(value) {
   const gender = String(value || "").trim().toUpperCase();
   if (gender === "MALE" || gender === "M") return "M";
@@ -382,10 +474,24 @@ function shortGender(value) {
   return value || "";
 }
 
+function fullGender(value) {
+  const gender = String(value || "").trim().toUpperCase();
+  if (gender === "MALE" || gender === "M") return "Male";
+  if (gender === "FEMALE" || gender === "F") return "Female";
+  if (gender === "UNSPECIFIED" || gender === "X") return "Unspecified";
+  return value || "";
+}
+
 function monthName(value) {
   const month = Number(value);
   const names = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   return names[month - 1] || "";
+}
+
+function monthNumber(value) {
+  const names = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+  const month = names.indexOf(String(value || "").trim().toLowerCase());
+  return month >= 0 ? month + 1 : 0;
 }
 
 function escapeHtml(value) {

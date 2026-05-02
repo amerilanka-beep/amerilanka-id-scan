@@ -6,6 +6,10 @@ export default {
       return handleExtract(request, env);
     }
 
+    if (request.method === "POST" && url.pathname === "/api/save") {
+      return handleSave(request, env);
+    }
+
     return env.ASSETS.fetch(request);
   },
 };
@@ -103,6 +107,40 @@ async function handleExtract(request, env) {
     });
   } catch (error) {
     return sendJson({ error: error.message || "Could not extract data." }, 500);
+  }
+}
+
+async function handleSave(request, env) {
+  if (!env.GOOGLE_SHEET_WEBHOOK_URL) {
+    return new Response(null, { status: 204 });
+  }
+
+  try {
+    const record = await request.json();
+    const response = await fetch(env.GOOGLE_SHEET_WEBHOOK_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+      },
+      body: JSON.stringify({
+        savedAt: String(record.savedAt || new Date().toISOString()),
+        surname: String(record.surname || ""),
+        givenNames: String(record.givenNames || ""),
+        birthDate: String(record.birthDate || ""),
+        gender: String(record.gender || ""),
+        nationality: String(record.nationality || ""),
+        expirationDate: String(record.expirationDate || ""),
+        copyBox: String(record.copyBox || ""),
+      }),
+    });
+
+    if (!response.ok) {
+      return sendJson({ error: "Google Sheet save failed." }, 502);
+    }
+
+    return sendJson({ ok: true });
+  } catch (error) {
+    return sendJson({ error: error.message || "Could not save to Google Sheet." }, 500);
   }
 }
 
