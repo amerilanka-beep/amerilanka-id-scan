@@ -13,6 +13,7 @@ Use this if you want every saved scan to appear in an online Google Sheet.
 
 ```js
 const SHEET_NAME = "Scans";
+const RECIPIENT_EMAIL = "YOUR_EMAIL_HERE";
 
 function doGet() {
   getSheet();
@@ -42,6 +43,14 @@ function doPost(e) {
     data.expirationDate || "",
     copyBox,
   ]);
+
+  if (RECIPIENT_EMAIL && RECIPIENT_EMAIL !== "YOUR_EMAIL_HERE") {
+    MailApp.sendEmail({
+      to: RECIPIENT_EMAIL,
+      subject: "AmeriLanka Passport Scan",
+      body: copyBox,
+    });
+  }
 
   return ContentService
     .createTextOutput(JSON.stringify({ ok: true }))
