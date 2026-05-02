@@ -1,0 +1,83 @@
+const SHEET_NAME = "Scans";
+
+function doGet() {
+  const sheet = getSheet();
+  const rows = sheet.getDataRange().getValues();
+  let html = "<h1>AmeriLanka Saved Scans</h1>";
+
+  if (rows.length <= 1) {
+    html += "<p>No saved scans yet.</p>";
+  } else {
+    for (let i = rows.length - 1; i >= 1; i--) {
+      const row = rows[i];
+      const copyBox = row[7] || buildCopyBox(row);
+      html += "<div style='border:1px solid #ddd;border-radius:8px;padding:12px;margin:12px 0;background:#fff;'>";
+      html += "<div style='font-size:12px;color:#666;margin-bottom:8px;'>" + safe(row[0]) + "</div>";
+      html += "<pre style='font-family:Arial,sans-serif;font-weight:bold;white-space:pre-wrap;line-height:1.5;margin:0;'>" + safe(copyBox) + "</pre>";
+      html += "</div>";
+    }
+  }
+
+  html = "<html><body style='font-family:Arial,sans-serif;background:#f4f7fb;padding:20px;max-width:760px;margin:auto;'>" + html + "</body></html>";
+  return HtmlService.createHtmlOutput(html);
+}
+
+function doPost(e) {
+  const data = JSON.parse(e.postData.contents || "{}");
+  const copyBox = data.copyBox || [
+    data.surname || "",
+    data.givenNames || "",
+    [data.birthDate || "", genderText(data.gender || "")].filter(Boolean).join(" / "),
+    data.nationality || "",
+    data.expirationDate || ""
+  ].filter(Boolean).join("\n");
+
+  getSheet().appendRow([
+    data.savedAt || new Date().toISOString(),
+    data.surname || "",
+    data.givenNames || "",
+    data.birthDate || "",
+    data.gender || "",
+    data.nationality || "",
+    data.expirationDate || "",
+    copyBox
+  ]);
+
+  return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function getSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) sheet = ss.insertSheet(SHEET_NAME);
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(["Saved At", "Surname", "Other Name / Given Name", "Birth Date", "Gender", "Nationality", "Expiration Date", "Copy Box"]);
+    sheet.setFrozenRows(1);
+    sheet.getRange("H:H").setWrap(true);
+  }
+  return sheet;
+}
+
+function buildCopyBox(row) {
+  return [
+    row[1] || "",
+    row[2] || "",
+    [row[3] || "", genderText(row[4] || "")].filter(Boolean).join(" / "),
+    row[5] || "",
+    row[6] || ""
+  ].filter(Boolean).join("\n");
+}
+
+function genderText(value) {
+  const gender = String(value || "").toUpperCase();
+  if (gender === "M" || gender === "MALE") return "Male";
+  if (gender === "F" || gender === "FEMALE") return "Female";
+  return value || "";
+}
+
+function safe(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
