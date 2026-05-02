@@ -17,7 +17,10 @@ export default {
 async function handleExtract(request, env) {
   try {
     if (env.MINDEE_API_KEY) {
-      return handleMindeeExtract(request, env);
+      const mindeeResponse = await handleMindeeExtract(request.clone(), env);
+      if (mindeeResponse.ok || !env.OPENAI_API_KEY) {
+        return mindeeResponse;
+      }
     }
 
     const openAiApiKey = env.OPENAI_API_KEY;
@@ -323,10 +326,18 @@ function normalizeMindeeV2Passport(payload) {
 }
 
 function mindeeV2Error(payload) {
-  const error = payload.error || payload.job?.error;
-  if (!error) return "";
+  const error = payload.error || payload.job?.error || payload.api_request?.error;
+  if (!error) {
+    if (payload.detail || payload.title || payload.code) {
+      return [payload.title, payload.detail, payload.code].filter(Boolean).join(" ");
+    }
+    if (Array.isArray(payload.errors) && payload.errors.length) {
+      return payload.errors.map((item) => item.message || item.detail || String(item)).join(" ");
+    }
+    return JSON.stringify(payload).slice(0, 220);
+  }
   if (typeof error === "string") return error;
-  return error.detail || error.message || error.title || "";
+  return error.detail || error.message || error.title || JSON.stringify(error).slice(0, 220);
 }
 
 function sleep(ms) {
