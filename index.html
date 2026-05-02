@@ -1,4 +1,5 @@
-const input = document.getElementById("documentInput");
+const cameraInput = document.getElementById("cameraInput");
+const uploadInput = document.getElementById("uploadInput");
 const previewWrap = document.getElementById("previewWrap");
 const previewImage = document.getElementById("previewImage");
 const progressWrap = document.getElementById("progressWrap");
@@ -6,6 +7,7 @@ const progressBar = document.getElementById("progressBar");
 const progressText = document.getElementById("progressText");
 const statusPill = document.getElementById("statusPill");
 const clearButton = document.getElementById("clearButton");
+const backupOcrButton = document.getElementById("backupOcrButton");
 const saveButton = document.getElementById("saveButton");
 const csvButton = document.getElementById("csvButton");
 const wordButton = document.getElementById("wordButton");
@@ -16,6 +18,7 @@ const parseMrzButton = document.getElementById("parseMrzButton");
 const reviewConfirm = document.getElementById("reviewConfirm");
 const rawText = document.getElementById("rawText");
 const storageKey = "amerilanka-id-scans";
+let selectedFile = null;
 
 const fields = {
   surname: document.getElementById("field-surname"),
@@ -26,10 +29,26 @@ const fields = {
   expirationDate: document.getElementById("field-expirationDate"),
 };
 
-input.addEventListener("change", async (event) => {
+const finalFields = {
+  surname: document.getElementById("final-surname"),
+  givenNames: document.getElementById("final-givenNames"),
+  birthDate: document.getElementById("final-birthDate"),
+  nationality: document.getElementById("final-nationality"),
+  expirationDate: document.getElementById("final-expirationDate"),
+};
+
+cameraInput.addEventListener("change", handleFileSelection);
+uploadInput.addEventListener("change", handleFileSelection);
+Object.values(fields).forEach((field) => {
+  field.addEventListener("input", updateFinalCard);
+});
+
+async function handleFileSelection(event) {
   const file = event.target.files?.[0];
   if (!file) return;
 
+  selectedFile = file;
+  backupOcrButton.hidden = true;
   resetFields();
   const imageUrl = URL.createObjectURL(file);
   previewImage.src = imageUrl;
@@ -37,24 +56,40 @@ input.addEventListener("change", async (event) => {
 
   try {
     setWorking("Scanning", 5, "Loading passport scanner...");
-    const apiData = await extractWithOpenAi(file);
-    if (apiData) {
+    const apiResult = await extractWithOpenAi(file);
+    if (apiResult.data) {
+      const apiData = apiResult.data;
       fillFields(apiData);
-      rawText.textContent = "Extracted with OpenAI vision. Review all fields before saving.";
+      rawText.textContent = "Extracted from visible passport fields with OpenAI vision. Review all fields before saving.";
       mrzInput.value = "";
       setWorking("Review", 100, "API extraction complete. Confirm every field before saving.");
       return;
     }
 
+    backupOcrButton.hidden = false;
+    rawText.textContent = apiResult.error || "OpenAI extraction did not return a readable result.";
+    setWorking("API Error", 100, "OpenAI extraction failed. Do not use backup OCR unless you only need a rough draft.");
+    return;
+  } catch (error) {
+    statusPill.textContent = "Error";
+    progressText.textContent = error.message || "Could not scan this image.";
+    backupOcrButton.hidden = false;
+  }
+}
+
+backupOcrButton.addEventListener("click", async () => {
+  if (!selectedFile) return;
+  try {
+    setWorking("Backup OCR", 5, "Running backup OCR. This may be less accurate.");
     if (!window.Tesseract) {
       throw new Error("OCR engine did not load. Check internet connection and refresh.");
     }
 
-    const text = await scanDocument(file);
+    const text = await scanDocument(selectedFile);
     rawText.textContent = text.trim();
     mrzInput.value = getBestMrzLines(text).join("\n");
     fillFields(extractDocumentData(text));
-    setWorking("Review", 100, "Scan complete. Confirm every field before saving.");
+    setWorking("Review", 100, "Backup OCR complete. Confirm every field carefully.");
   } catch (error) {
     statusPill.textContent = "Error";
     progressText.textContent = error.message || "Could not scan this image.";
@@ -62,17 +97,21 @@ input.addEventListener("change", async (event) => {
 });
 
 clearButton.addEventListener("click", () => {
-  input.value = "";
+  selectedFile = null;
+  cameraInput.value = "";
+  uploadInput.value = "";
   previewImage.removeAttribute("src");
   previewWrap.hidden = true;
   progressWrap.hidden = true;
   statusPill.textContent = "Ready";
   rawText.textContent = "";
+  backupOcrButton.hidden = true;
   reviewWarning.hidden = true;
   reviewWarning.textContent = "";
   mrzInput.value = "";
   reviewConfirm.checked = false;
   resetFields();
+  updateFinalCard();
 });
 
 parseMrzButton.addEventListener("click", () => {
@@ -189,11 +228,14 @@ async function extractWithOpenAi(file) {
       body: JSON.stringify({ imageData }),
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      const errorPayload = await response.json().catch(() => ({}));
+      return { data: null, error: errorPayload.error || `OpenAI request failed (${response.status}).` };
+    }
     const payload = await response.json();
-    return payload.data || null;
+    return { data: payload.data || null, error: payload.error || "" };
   } catch {
-    return null;
+    return { data: null, error: "Could not reach the OpenAI extraction service." };
   }
 }
 
@@ -225,15 +267,17 @@ function resetFields() {
   Object.values(fields).forEach((field) => {
     field.value = "";
   });
+  updateFinalCard();
 }
 
 function fillFields(data) {
   fields.surname.value = data.surname || "";
   fields.givenNames.value = data.givenNames || "";
-  fields.birthDate.value = data.birthDate || "";
+  fields.birthDate.value = formatDisplayDate(data.birthDate);
   fields.gender.value = data.gender || "";
   fields.nationality.value = data.nationality || "";
-  fields.expirationDate.value = data.expirationDate || "";
+  fields.expirationDate.value = formatDisplayDate(data.expirationDate);
+  updateFinalCard();
 
   if (data.warning) {
     reviewWarning.textContent = data.warning;
@@ -242,6 +286,15 @@ function fillFields(data) {
     reviewWarning.textContent = "";
     reviewWarning.hidden = true;
   }
+}
+
+function updateFinalCard() {
+  const record = currentRecord();
+  finalFields.surname.textContent = record.surname || "-";
+  finalFields.givenNames.textContent = record.givenNames || "-";
+  finalFields.birthDate.textContent = [record.birthDate, shortGender(record.gender)].filter(Boolean).join(" / ") || "-";
+  finalFields.nationality.textContent = record.nationality || "-";
+  finalFields.expirationDate.textContent = record.expirationDate || "-";
 }
 
 async function scanDocument(file) {
@@ -395,6 +448,37 @@ function formatSavedAt(value) {
   return new Date(value).toLocaleString();
 }
 
+function formatDisplayDate(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) {
+    return `${iso[3]} ${monthName(iso[2])} ${iso[1].slice(-2)}`;
+  }
+
+  const slash = text.match(/^(\d{1,2})[\/\-. ](\d{1,2})[\/\-. ](\d{2,4})$/);
+  if (slash) {
+    return `${slash[2].padStart(2, "0")} ${monthName(slash[1])} ${slash[3].slice(-2)}`;
+  }
+
+  return text;
+}
+
+function shortGender(value) {
+  const gender = String(value || "").trim().toUpperCase();
+  if (gender === "MALE" || gender === "M") return "M";
+  if (gender === "FEMALE" || gender === "F") return "F";
+  if (gender === "UNSPECIFIED" || gender === "X") return "X";
+  return value || "";
+}
+
+function monthName(value) {
+  const month = Number(value);
+  const names = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  return names[month - 1] || "";
+}
+
 function escapeHtml(value) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -409,8 +493,8 @@ function extractDocumentData(text) {
   const mrz = parseMrz(normalized);
   const visual = parseVisualFields(normalized);
 
-  const surname = reliableName(mrz.surname) || reliableName(visual.surname);
-  const givenNames = reliableName(mrz.givenNames) || reliableName(visual.givenNames);
+  const surname = reliableName(visual.surname) || reliableName(mrz.surname);
+  const givenNames = reliableName(visual.givenNames) || reliableName(mrz.givenNames);
   const warning = buildWarning(mrz, surname, givenNames);
 
   return {
@@ -427,10 +511,11 @@ function extractDocumentData(text) {
 function reliableName(value) {
   const name = (value || "").trim();
   if (!name) return "";
-  if (/\d/.test(name)) return "";
-  if (/[^A-Za-z .'-]/.test(name)) return "";
-  if (/[bcdfghjklmnpqrstvwxyz]{6,}/i.test(name.replace(/\s+/g, ""))) return "";
-  return name;
+  return name
+    .replace(/\d/g, "")
+    .replace(/[^A-Za-z .'-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function buildWarning(mrz, surname, givenNames) {
