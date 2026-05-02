@@ -24,6 +24,13 @@ function doGet() {
 function doPost(e) {
   const sheet = getSheet();
   const data = JSON.parse(e.postData.contents || "{}");
+  const copyBox = data.copyBox || [
+    data.surname || "",
+    data.givenNames || "",
+    [data.birthDate || "", fullGender(data.gender || "")].filter(Boolean).join(" / "),
+    data.nationality || "",
+    data.expirationDate || "",
+  ].filter(Boolean).join("\n");
 
   sheet.appendRow([
     data.savedAt || new Date().toISOString(),
@@ -33,12 +40,20 @@ function doPost(e) {
     data.gender || "",
     data.nationality || "",
     data.expirationDate || "",
-    data.copyBox || "",
+    copyBox,
   ]);
 
   return ContentService
     .createTextOutput(JSON.stringify({ ok: true }))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+function fullGender(value) {
+  const gender = String(value || "").trim().toUpperCase();
+  if (gender === "MALE" || gender === "M") return "Male";
+  if (gender === "FEMALE" || gender === "F") return "Female";
+  if (gender === "UNSPECIFIED" || gender === "X") return "Unspecified";
+  return value || "";
 }
 
 function getSheet() {

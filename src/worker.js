@@ -117,21 +117,26 @@ async function handleSave(request, env) {
 
   try {
     const record = await request.json();
+    const normalizedRecord = {
+      savedAt: String(record.savedAt || new Date().toISOString()),
+      surname: String(record.surname || ""),
+      givenNames: String(record.givenNames || ""),
+      birthDate: String(record.birthDate || ""),
+      gender: String(record.gender || ""),
+      nationality: String(record.nationality || ""),
+      expirationDate: String(record.expirationDate || ""),
+      copyBox: String(record.copyBox || ""),
+    };
+    if (!normalizedRecord.copyBox) {
+      normalizedRecord.copyBox = buildCopyBox(normalizedRecord);
+    }
+
     const response = await fetch(env.GOOGLE_SHEET_WEBHOOK_URL, {
       method: "POST",
       headers: {
         "Content-Type": "text/plain;charset=utf-8",
       },
-      body: JSON.stringify({
-        savedAt: String(record.savedAt || new Date().toISOString()),
-        surname: String(record.surname || ""),
-        givenNames: String(record.givenNames || ""),
-        birthDate: String(record.birthDate || ""),
-        gender: String(record.gender || ""),
-        nationality: String(record.nationality || ""),
-        expirationDate: String(record.expirationDate || ""),
-        copyBox: String(record.copyBox || ""),
-      }),
+      body: JSON.stringify(normalizedRecord),
     });
     const responseText = await response.text();
 
@@ -147,6 +152,24 @@ async function handleSave(request, env) {
   } catch (error) {
     return sendJson({ error: error.message || "Could not save to Google Sheet." }, 500);
   }
+}
+
+function buildCopyBox(record) {
+  return [
+    record.surname,
+    record.givenNames,
+    [record.birthDate, fullGender(record.gender)].filter(Boolean).join(" / "),
+    record.nationality,
+    record.expirationDate,
+  ].filter(Boolean).join("\n");
+}
+
+function fullGender(value) {
+  const gender = String(value || "").trim().toUpperCase();
+  if (gender === "MALE" || gender === "M") return "Male";
+  if (gender === "FEMALE" || gender === "F") return "Female";
+  if (gender === "UNSPECIFIED" || gender === "X") return "Unspecified";
+  return value || "";
 }
 
 async function handleMindeeExtract(request, env) {
