@@ -112,6 +112,10 @@ async function handleMindeeExtract(request, env) {
     return sendJson({ error: "Missing image data." }, 400);
   }
 
+  if (env.MINDEE_MODEL_ID) {
+    return handleMindeeV2Extract(body.imageData, env);
+  }
+
   const { blob, filename } = dataUrlToBlob(body.imageData);
   const formData = new FormData();
   formData.append("document", blob, filename);
@@ -134,6 +138,124 @@ async function handleMindeeExtract(request, env) {
     provider: "mindee",
     model: "passport-v1",
   });
+}
+
+async function handleMindeeV2Extract(imageData, env) {
+  const { blob, filename } = dataUrlToBlob(imageData);
+  const formData = new FormData();
+  formData.append("model_id", env.MINDEE_MODEL_ID);
+  formData.append("file", blob, filename);
+  formData.append("confidence", "true");
+
+  const enqueueResponse = await fetch("https://api-v2.mindee.net/v2/products/extraction/enqueue", {
+    method: "POST",
+    headers: {
+      "Authorization": env.MINDEE_API_KEY,
+    },
+    body: formData,
+  });
+
+  const enqueuePayload = await enqueueResponse.json();
+  if (!enqueueResponse.ok) {
+    return sendJson({ error: mindeeV2Error(enqueuePayload) || "Mindee extraction failed." }, enqueueResponse.status);
+  }
+
+  const job = enqueuePayload.job || {};
+  const resultPayload = await pollMindeeV2Result(job, env.MINDEE_API_KEY);
+
+  return sendJson({
+    data: normalizeMindeeV2Passport(resultPayload),
+    provider: "mindee",
+    model: "mindee-v2",
+  });
+}
+
+async function pollMindeeV2Result(job, apiKey) {
+  let pollingUrl = job.polling_url || (job.id ? `https://api-v2.mindee.net/v2/jobs/${job.id}?redirect=false` : "");
+  if (!pollingUrl) {
+    throw new Error("Mindee did not return a job to poll.");
+  }
+  if (!pollingUrl.includes("redirect=")) {
+    pollingUrl += pollingUrl.includes("?") ? "&redirect=false" : "?redirect=false";
+  }
+
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    await sleep(attempt === 0 ? 1200 : 1800);
+    const statusResponse = await fetch(pollingUrl, {
+      headers: {
+        "Authorization": apiKey,
+      },
+      redirect: "manual",
+    });
+    const statusPayload = await statusResponse.json().catch(() => ({}));
+    if (!statusResponse.ok) {
+      throw new Error(mindeeV2Error(statusPayload) || "Mindee job check failed.");
+    }
+
+    const currentJob = statusPayload.job || {};
+    const status = String(currentJob.status || "").toLowerCase();
+    if (status === "failed") {
+      throw new Error(mindeeV2Error(statusPayload) || "Mindee processing failed.");
+    }
+
+    if (status === "processed" || status === "completed") {
+      const resultUrl = currentJob.result_url || job.result_url;
+      if (!resultUrl) {
+        throw new Error("Mindee processed the document but did not return a result URL.");
+      }
+      const resultResponse = await fetch(resultUrl, {
+        headers: {
+          "Authorization": apiKey,
+        },
+      });
+      const resultPayload = await resultResponse.json();
+      if (!resultResponse.ok) {
+        throw new Error(mindeeV2Error(resultPayload) || "Mindee result download failed.");
+      }
+      return resultPayload;
+    }
+  }
+
+  throw new Error("Mindee took too long to process the passport. Try again.");
+}
+
+function normalizeMindeeV2Passport(payload) {
+  const fields = payload.inference?.result?.fields || {};
+  const surname = fieldValue(fields, ["surname", "surnames", "last_name", "family_name"]);
+  const givenNames = fieldValue(fields, ["given_names", "givenNames", "other_name", "other_names", "first_name"]);
+  const birthDate = fieldValue(fields, ["birth_date", "date_of_birth", "birthDate", "dob"]);
+  const gender = normalizeGender(fieldValue(fields, ["gender", "sex"]));
+  const nationality = fieldValue(fields, ["nationality", "country", "citizenship"]);
+  const expirationDate = fieldValue(fields, ["expiration_date", "expiry_date", "date_of_expiry", "expirationDate", "expires"]);
+  const warning = confidenceWarnings(fields, {
+    surname: "surname",
+    given_names: "given names",
+    birth_date: "birth date",
+    gender: "gender",
+    nationality: "nationality",
+    expiration_date: "expiration date",
+  });
+
+  return {
+    surname,
+    givenNames,
+    birthDate,
+    gender,
+    nationality,
+    expirationDate,
+    warning: warning || "Source 1 result. Check every field against the document before saving.",
+  };
+}
+
+function mindeeV2Error(payload) {
+  const error = payload.error || payload.job?.error;
+  if (!error) return "";
+  if (typeof error === "string") return error;
+  return error.detail || error.message || error.title || "";
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function dataUrlToBlob(dataUrl) {
