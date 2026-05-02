@@ -49,15 +49,15 @@ async function handleFileSelection(event) {
     if (apiResult.data) {
       const apiData = apiResult.data;
       fillFields(apiData);
-      rawText.textContent = "Extracted from visible passport fields with OpenAI vision. Review all fields before saving.";
-      setWorking("Review", 100, "API extraction complete. Confirm every field before saving.");
+      rawText.textContent = `Extracted with Source ${sourceNumber(apiResult.provider)}. Review all fields before saving.`;
+      setWorking("Review", 100, `Source ${sourceNumber(apiResult.provider)} extraction complete. Confirm every field before saving.`);
       return;
     }
 
     rawText.textContent = apiResult.error || "OpenAI extraction did not return a readable result.";
-    reviewWarning.textContent = "OpenAI extraction failed. No backup OCR was used, so no unreliable data was filled.";
+    reviewWarning.textContent = "Passport extraction failed. No backup OCR was used, so no unreliable data was filled.";
     reviewWarning.hidden = false;
-    setWorking("API Error", 100, "OpenAI extraction failed. Check the API key/model or try a clearer passport image.");
+    setWorking("API Error", 100, "Passport extraction failed. Check the API key or try a clearer passport image.");
     return;
   } catch (error) {
     statusPill.textContent = "Error";
@@ -203,10 +203,16 @@ async function extractWithOpenAi(file) {
       return { data: null, error: errorPayload.error || `OpenAI request failed (${response.status}).` };
     }
     const payload = await response.json();
-    return { data: payload.data || null, error: payload.error || "" };
+    return { data: payload.data || null, error: payload.error || "", provider: payload.provider || "" };
   } catch {
-    return { data: null, error: "Could not reach the OpenAI extraction service." };
+    return { data: null, error: "Could not reach the passport extraction service." };
   }
+}
+
+function sourceNumber(provider) {
+  if (provider === "mindee") return "1";
+  if (provider === "openai") return "2";
+  return "2";
 }
 
 function fileToDataUrl(file) {

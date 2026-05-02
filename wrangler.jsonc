@@ -1,13 +1,13 @@
 {
+  "$schema": "node_modules/wrangler/config-schema.json",
   "name": "amerilanka-id-scan",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "start": "node server.mjs",
-    "deploy": "wrangler deploy"
+  "main": "src/worker.js",
+  "compatibility_date": "2026-05-02",
+  "assets": {
+    "directory": "public",
+    "binding": "ASSETS"
   },
-  "devDependencies": {
-    "wrangler": "^4.0.0"
+  "observability": {
+    "enabled": true
   }
 }
