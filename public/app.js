@@ -315,19 +315,93 @@ function updateFinalCard() {
 
 function buildFinalText() {
   const record = currentRecord();
-  const lines = [
-    record.surname,
-    record.givenNames,
-    [record.birthDate, fullGender(record.gender)].filter(Boolean).join(" / "),
-    record.nationality,
-    record.expirationDate,
-  ].filter(Boolean);
+  const line = [
+    cleanTravelName(record.surname),
+    cleanTravelName(record.givenNames),
+    formatTravelDate(record.birthDate),
+    shortGender(record.gender),
+    formatTravelExpiryYear(record.expirationDate),
+    countryCode(record.nationality),
+  ].filter(Boolean).join("/");
+
+  const lines = [line].filter(Boolean);
 
   if (passportExpirationWarning(record.expirationDate)) {
     lines.push("EXPIRING SOON");
   }
 
   return lines.join("\n");
+}
+
+function cleanTravelName(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z .'-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatTravelDate(value) {
+  const parts = dateParts(value);
+  if (!parts) return "";
+  return `${String(parts.day).padStart(2, "0")}${monthAbbrev(parts.month)}${String(parts.year).slice(-2)}`;
+}
+
+function formatTravelExpiryYear(value) {
+  const parts = dateParts(value);
+  if (!parts) return "";
+  return String(parts.year).slice(-2);
+}
+
+function dateParts(value) {
+  const text = String(value || "").trim();
+  if (!text) return null;
+
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return { year: iso[1], month: Number(iso[2]), day: Number(iso[3]) };
+
+  const named = text.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{2}|\d{4})$/);
+  if (named) return { year: named[3], month: monthNumber(named[2]), day: Number(named[1]) };
+
+  const slash = text.match(/^(\d{1,2})[\/\-. ](\d{1,2})[\/\-. ](\d{2}|\d{4})$/);
+  if (slash) return { year: slash[3], month: Number(slash[2]), day: Number(slash[1]) };
+
+  return null;
+}
+
+function monthAbbrev(value) {
+  const names = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+  return names[Number(value) - 1] || "";
+}
+
+function countryCode(value) {
+  const text = String(value || "").trim().toUpperCase();
+  if (!text) return "";
+  const compact = text.replace(/[^A-Z]/g, "");
+  const map = {
+    USA: "US",
+    US: "US",
+    UNITEDSTATES: "US",
+    UNITEDSTATESOFAMERICA: "US",
+    AMERICAN: "US",
+    LKA: "LK",
+    LK: "LK",
+    SRILANKA: "LK",
+    SRILANKAN: "LK",
+    CAN: "CA",
+    CANADA: "CA",
+    GBR: "GB",
+    UK: "GB",
+    UNITEDKINGDOM: "GB",
+    IND: "IN",
+    INDIA: "IN",
+    AUS: "AU",
+    AUSTRALIA: "AU",
+  };
+  if (map[compact]) return map[compact];
+  if (compact.length >= 2) return compact.slice(0, 2);
+  return compact;
 }
 
 function currentRecord() {

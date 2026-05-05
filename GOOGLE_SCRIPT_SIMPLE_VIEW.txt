@@ -25,12 +25,13 @@ function doGet() {
 function doPost(e) {
   const data = JSON.parse(e.postData.contents || "{}");
   const copyBox = data.copyBox || [
-    data.surname || "",
-    data.givenNames || "",
-    [data.birthDate || "", genderText(data.gender || "")].filter(Boolean).join(" / "),
-    data.nationality || "",
-    data.expirationDate || ""
-  ].filter(Boolean).join("\n");
+    cleanName(data.surname || ""),
+    cleanName(data.givenNames || ""),
+    travelDate(data.birthDate || ""),
+    genderText(data.gender || ""),
+    expiryYear(data.expirationDate || ""),
+    countryCode(data.nationality || "")
+  ].filter(Boolean).join("/");
 
   getSheet().appendRow([
     data.savedAt || new Date().toISOString(),
@@ -60,19 +61,74 @@ function getSheet() {
 
 function buildCopyBox(row) {
   return [
-    row[1] || "",
-    row[2] || "",
-    [row[3] || "", genderText(row[4] || "")].filter(Boolean).join(" / "),
-    row[5] || "",
-    row[6] || ""
-  ].filter(Boolean).join("\n");
+    cleanName(row[1] || ""),
+    cleanName(row[2] || ""),
+    travelDate(row[3] || ""),
+    genderText(row[4] || ""),
+    expiryYear(row[6] || ""),
+    countryCode(row[5] || "")
+  ].filter(Boolean).join("/");
 }
 
 function genderText(value) {
   const gender = String(value || "").toUpperCase();
-  if (gender === "M" || gender === "MALE") return "Male";
-  if (gender === "F" || gender === "FEMALE") return "Female";
+  if (gender === "M" || gender === "MALE") return "M";
+  if (gender === "F" || gender === "FEMALE") return "F";
   return value || "";
+}
+
+function cleanName(value) {
+  return String(value || "").toUpperCase().replace(/[^A-Z .'-]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function travelDate(value) {
+  const parts = dateParts(value);
+  if (!parts) return "";
+  return String(parts.day).padStart(2, "0") + monthAbbrev(parts.month) + String(parts.year).slice(-2);
+}
+
+function expiryYear(value) {
+  const parts = dateParts(value);
+  return parts ? String(parts.year).slice(-2) : "";
+}
+
+function dateParts(value) {
+  const text = String(value || "").trim();
+  let match = text.match(/^(\d{1,2})\s+([A-Za-z]+)\s+(\d{2}|\d{4})$/);
+  if (match) return { day: Number(match[1]), month: monthNumber(match[2]), year: match[3] };
+  match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) return { day: Number(match[3]), month: Number(match[2]), year: match[1] };
+  match = text.match(/^(\d{1,2})[\/\-. ](\d{1,2})[\/\-. ](\d{2}|\d{4})$/);
+  if (match) return { day: Number(match[1]), month: Number(match[2]), year: match[3] };
+  return null;
+}
+
+function monthAbbrev(value) {
+  const names = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+  return names[Number(value) - 1] || "";
+}
+
+function monthNumber(value) {
+  const names = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+  const month = names.indexOf(String(value || "").toLowerCase());
+  return month >= 0 ? month + 1 : 0;
+}
+
+function countryCode(value) {
+  const compact = String(value || "").toUpperCase().replace(/[^A-Z]/g, "");
+  const map = {
+    USA: "US",
+    US: "US",
+    UNITEDSTATES: "US",
+    UNITEDSTATESOFAMERICA: "US",
+    AMERICAN: "US",
+    LKA: "LK",
+    LK: "LK",
+    SRILANKA: "LK",
+    SRILANKAN: "LK"
+  };
+  if (map[compact]) return map[compact];
+  return compact.slice(0, 2);
 }
 
 function safe(value) {
