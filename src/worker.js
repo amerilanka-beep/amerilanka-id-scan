@@ -20,13 +20,21 @@ export default {
 
 async function handleExtract(request, env) {
   try {
-    const body = await request.json();
-    if (!body?.imageData || !String(body.imageData).startsWith("data:image/")) {
-      return sendJson({ error: "Missing image data." }, 400);
+    const body = await readJsonBody(request);
+    const imageData = String(body?.imageData || "");
+    if (!imageData) {
+      return sendJson({
+        error: "No photo reached the scanner. Refresh the page, tap Upload Photo, and pick a JPG or PNG again.",
+      }, 400);
+    }
+    if (!imageData.startsWith("data:image/")) {
+      return sendJson({
+        error: "The selected file was not sent as a readable image. Please use a JPG or PNG photo.",
+      }, 400);
     }
 
     if (env.MINDEE_API_KEY) {
-      const mindeeResponse = await handleMindeeExtract(body.imageData, env);
+      const mindeeResponse = await handleMindeeExtract(imageData, env);
       if (mindeeResponse.ok || !env.OPENAI_API_KEY) {
         return mindeeResponse;
       }
@@ -71,7 +79,7 @@ async function handleExtract(request, env) {
               },
               {
                 type: "input_image",
-                image_url: body.imageData,
+                image_url: imageData,
                 detail: "high",
               },
             ],
@@ -117,13 +125,23 @@ async function handleExtract(request, env) {
   }
 }
 
+async function readJsonBody(request) {
+  const text = await request.text();
+  if (!text.trim()) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
+}
+
 async function handleSave(request, env) {
   if (!env.GOOGLE_SHEET_WEBHOOK_URL) {
     return new Response(null, { status: 204 });
   }
 
   try {
-    const record = await request.json();
+    const record = await readJsonBody(request);
     const normalizedRecord = {
       savedAt: String(record.savedAt || new Date().toISOString()),
       surname: String(record.surname || ""),
@@ -168,7 +186,7 @@ async function handleDocFill(request, env) {
   }
 
   try {
-    const record = await request.json();
+    const record = await readJsonBody(request);
     const normalizedRecord = {
       action: "docfill",
       savedAt: String(record.savedAt || new Date().toISOString()),

@@ -193,10 +193,22 @@ async function extractPassportData(file) {
   setWorking("Scanning", 8, "Trying secure API extraction...");
   try {
     const imageData = await fileToDataUrl(file);
+    if (!imageData || !String(imageData).startsWith("data:image/")) {
+      return {
+        data: null,
+        error: "The phone did not load that file as an image. Please choose a JPG or PNG from Upload Photo.",
+      };
+    }
+
     const response = await fetch("/api/extract", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageData }),
+      body: JSON.stringify({
+        imageData,
+        fileName: file.name || "passport-image",
+        fileType: file.type || "",
+        fileSize: file.size || 0,
+      }),
     });
 
     if (!response.ok) {
