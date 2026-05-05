@@ -350,7 +350,7 @@ function updateFinalCard() {
 
 function buildFinalText() {
   const record = currentRecord();
-  const line = [
+  const rawLine = [
     cleanTravelName(record.surname),
     cleanTravelName(record.givenNames),
     formatTravelDate(record.birthDate),
@@ -358,6 +358,7 @@ function buildFinalText() {
     formatTravelExpiryYear(record.expirationDate),
     countryCode(record.nationality),
   ].filter(Boolean).join("/");
+  const line = rawLine ? `-${rawLine}` : "";
 
   const lines = [line].filter(Boolean);
 

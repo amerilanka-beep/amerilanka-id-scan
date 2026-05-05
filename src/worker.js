@@ -236,7 +236,7 @@ async function handleDocFill(request, env) {
 }
 
 function buildCopyBox(record) {
-  return [
+  const line = [
     cleanTravelName(record.surname),
     cleanTravelName(record.givenNames),
     formatTravelDate(record.birthDate),
@@ -244,6 +244,7 @@ function buildCopyBox(record) {
     formatTravelExpiryYear(record.expirationDate),
     countryCode(record.nationality),
   ].filter(Boolean).join("/");
+  return line ? `-${line}` : "";
 }
 
 function cleanTravelName(value) {

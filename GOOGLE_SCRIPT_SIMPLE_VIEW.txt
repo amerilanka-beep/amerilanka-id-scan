@@ -93,12 +93,13 @@ function docFillValues(data) {
   const gender = genderText(data.gender || "");
   const expire = expiryYear(data.expirationDate || "");
   const country = countryCode(data.nationality || "");
+  const name = [last, firstMiddle].filter(Boolean).join("/");
 
   return {
-    A3: [last, firstMiddle].filter(Boolean).join("/"),
+    A3: name,
     B3: [dob, gender].filter(Boolean).join("/"),
     C3: [expire, country].filter(Boolean).join("/"),
-    A10: ["3DOCSA", "DB", dob, gender, last, firstMiddle].filter(Boolean).join("/"),
+    A10: ["3DOCSA", "DB", dob, gender, name].filter(Boolean).join("/"),
     copyBox: makeCopyBox(data)
   };
 }
@@ -120,7 +121,7 @@ function getSheet() {
 }
 
 function buildCopyBox(row) {
-  return [
+  const line = [
     cleanName(row[1] || ""),
     cleanName(row[2] || ""),
     travelDate(row[3] || ""),
@@ -128,10 +129,11 @@ function buildCopyBox(row) {
     expiryYear(row[6] || ""),
     countryCode(row[5] || "")
   ].filter(Boolean).join("/");
+  return line ? "-" + line : "";
 }
 
 function makeCopyBox(data) {
-  return [
+  const line = [
     cleanName(data.surname || ""),
     cleanName(data.givenNames || ""),
     travelDate(data.birthDate || ""),
@@ -139,6 +141,7 @@ function makeCopyBox(data) {
     expiryYear(data.expirationDate || ""),
     countryCode(data.nationality || "")
   ].filter(Boolean).join("/");
+  return line ? "-" + line : "";
 }
 
 function genderText(value) {
