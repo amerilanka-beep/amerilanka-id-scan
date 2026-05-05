@@ -94,9 +94,10 @@ function docFillValues(data) {
   const expire = expiryYear(data.expirationDate || "");
   const country = countryCode(data.nationality || "");
   const name = [last, firstMiddle].filter(Boolean).join("/");
+  const dashedName = name ? "-" + name : "";
 
   return {
-    A3: name,
+    A3: dashedName,
     B3: [dob, gender].filter(Boolean).join("/"),
     C3: [expire, country].filter(Boolean).join("/"),
     A10: ["3DOCSA", "DB", dob, gender, name].filter(Boolean).join("/"),
