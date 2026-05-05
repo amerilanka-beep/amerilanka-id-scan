@@ -151,56 +151,23 @@ csvButton.addEventListener("click", () => {
 });
 
 wordButton.addEventListener("click", () => {
-  const saved = ensureExportRecords();
-  if (!saved.length) return;
+  const record = currentRecord();
+  if (!hasRecordData(record)) {
+    statusPill.textContent = "Empty";
+    progressWrap.hidden = false;
+    progressText.textContent = "Scan or enter data before making the Word document.";
+    return;
+  }
 
-  const rows = saved.map((record) => `
-    <tr>
-      <td>${escapeHtml(record.surname)}</td>
-      <td>${escapeHtml(record.givenNames)}</td>
-      <td>${escapeHtml(record.birthDate)}</td>
-      <td>${escapeHtml(record.gender)}</td>
-      <td>${escapeHtml(record.nationality)}</td>
-      <td>${escapeHtml(record.expirationDate)}</td>
-      <td>${escapeHtml(formatSavedAt(record.savedAt))}</td>
-    </tr>
-  `).join("");
+  const documentHtml = buildDocFillDocument(record);
+  const namePart = [cleanTravelName(record.surname), cleanTravelName(record.givenNames)]
+    .filter(Boolean)
+    .join("-")
+    .replace(/[^A-Z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "") || "scan";
 
-  const documentHtml = `
-    <!doctype html>
-    <html>
-      <head>
-        <meta charset="utf-8">
-        <title>AmeriLanka ID Scans</title>
-        <style>
-          body { font-family: Arial, sans-serif; color: #162033; }
-          h1 { color: #0b3d91; }
-          table { border-collapse: collapse; width: 100%; }
-          th, td { border: 1px solid #dfe5ef; padding: 8px; text-align: left; }
-          th { background: #f4f7fb; }
-        </style>
-      </head>
-      <body>
-        <h1>AmeriLanka ID Scans</h1>
-        <table>
-          <thead>
-            <tr>
-              <th>Surname</th>
-              <th>Other Name / Given Name</th>
-              <th>Birth Date</th>
-              <th>Gender</th>
-              <th>Nationality</th>
-              <th>Expiration Date</th>
-              <th>Saved At</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </body>
-    </html>
-  `;
-
-  downloadFile("amerilanka-id-scans.doc", documentHtml, "application/msword;charset=utf-8");
+  downloadFile(`DocFill-${namePart}-${Date.now()}.doc`, documentHtml, "application/msword;charset=utf-8");
 });
 
 renderSavedRecords();
@@ -331,6 +298,76 @@ function buildFinalText() {
   }
 
   return lines.join("\n");
+}
+
+function buildDocFillDocument(record) {
+  const values = buildDocFillValues(record);
+  const rows = Array.from({ length: 10 }, (_, index) => {
+    const rowNumber = index + 1;
+    const cells = [1, 2, 3].map((columnNumber) => {
+      const key = `${String.fromCharCode(64 + columnNumber)}${rowNumber}`;
+      return `<td>${escapeHtml(values[key] || "")}</td>`;
+    }).join("");
+    return `<tr>${cells}</tr>`;
+  }).join("");
+
+  return `
+    <!doctype html>
+    <html xmlns:o="urn:schemas-microsoft-com:office:office"
+          xmlns:w="urn:schemas-microsoft-com:office:word"
+          xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="utf-8">
+        <title>DocFill</title>
+        <style>
+          @page WordSection1 { size: 8.5in 11in; margin: 0.55in; }
+          div.WordSection1 { page: WordSection1; }
+          body { font-family: Arial, sans-serif; color: #111; }
+          h1 { font-size: 16pt; margin: 0 0 14pt; text-align: center; }
+          table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+          td {
+            border: 1px solid #111;
+            height: 34pt;
+            padding: 5pt 6pt;
+            vertical-align: middle;
+            font-size: 11pt;
+            font-weight: bold;
+            white-space: normal;
+          }
+          .note { margin-top: 14pt; font-size: 9pt; color: #444; }
+        </style>
+      </head>
+      <body>
+        <div class="WordSection1">
+          <h1>AMERILANKA CUSTOMER'S INFORMATION FORM</h1>
+          <table>
+            ${rows}
+          </table>
+          <p class="note">Generated ${escapeHtml(new Date().toLocaleString())}</p>
+        </div>
+      </body>
+    </html>
+  `;
+}
+
+function buildDocFillValues(record) {
+  const last = cleanTravelName(record.surname);
+  const firstMiddle = cleanTravelName(record.givenNames);
+  const dob = formatTravelDate(record.birthDate);
+  const gender = shortGender(record.gender);
+  const expirationYear = formatTravelExpiryYear(record.expirationDate);
+  const country = countryCode(record.nationality);
+  const name = [last, firstMiddle].filter(Boolean).join("/");
+  const dobGender = [dob, gender].filter(Boolean).join("/");
+  const expiryCountry = [expirationYear, country].filter(Boolean).join("/");
+  const lineA10 = ["3DOCSA", "DB", dob, last, firstMiddle].filter(Boolean).join("/");
+
+  return {
+    A3: name,
+    B3: dobGender,
+    C3: expiryCountry,
+    A10: lineA10,
+  };
 }
 
 function cleanTravelName(value) {
