@@ -20,8 +20,13 @@ export default {
 
 async function handleExtract(request, env) {
   try {
+    const body = await request.json();
+    if (!body?.imageData || !String(body.imageData).startsWith("data:image/")) {
+      return sendJson({ error: "Missing image data." }, 400);
+    }
+
     if (env.MINDEE_API_KEY) {
-      const mindeeResponse = await handleMindeeExtract(request.clone(), env);
+      const mindeeResponse = await handleMindeeExtract(body.imageData, env);
       if (mindeeResponse.ok || !env.OPENAI_API_KEY) {
         return mindeeResponse;
       }
@@ -32,11 +37,6 @@ async function handleExtract(request, env) {
 
     if (!openAiApiKey) {
       return sendJson({ error: "Scanner account is not configured." }, 503);
-    }
-
-    const body = await request.json();
-    if (!body?.imageData || !String(body.imageData).startsWith("data:image/")) {
-      return sendJson({ error: "Missing image data." }, 400);
     }
 
     const apiResponse = await fetch("https://api.openai.com/v1/responses", {
@@ -191,7 +191,13 @@ async function handleDocFill(request, env) {
       },
       body: JSON.stringify(normalizedRecord),
     });
-    const payload = await response.json().catch(async () => ({ error: await response.text() }));
+    const responseText = await response.text();
+    let payload = {};
+    try {
+      payload = JSON.parse(responseText);
+    } catch {
+      payload = { error: responseText };
+    }
 
     if (!response.ok || !payload.ok) {
       return sendJson({ error: cleanServiceError(payload.error || `Word document failed: ${response.status}`) }, 502);
@@ -300,17 +306,16 @@ function countryCode(value) {
   return compact.slice(0, 2);
 }
 
-async function handleMindeeExtract(request, env) {
-  const body = await request.json();
-  if (!body?.imageData || !String(body.imageData).startsWith("data:image/")) {
+async function handleMindeeExtract(imageData, env) {
+  if (!imageData || !String(imageData).startsWith("data:image/")) {
     return sendJson({ error: "Missing image data." }, 400);
   }
 
   if (env.MINDEE_MODEL_ID) {
-    return handleMindeeV2Extract(body.imageData, env);
+    return handleMindeeV2Extract(imageData, env);
   }
 
-  const { blob, filename } = dataUrlToBlob(body.imageData);
+  const { blob, filename } = dataUrlToBlob(imageData);
   const formData = new FormData();
   formData.append("document", blob, filename);
 
