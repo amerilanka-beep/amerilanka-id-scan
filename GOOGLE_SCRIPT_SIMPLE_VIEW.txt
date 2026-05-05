@@ -98,7 +98,7 @@ function docFillValues(data) {
     A3: [last, firstMiddle].filter(Boolean).join("/"),
     B3: [dob, gender].filter(Boolean).join("/"),
     C3: [expire, country].filter(Boolean).join("/"),
-    A10: ["3DOCSA", "DB", dob, last, firstMiddle].filter(Boolean).join("/"),
+    A10: ["3DOCSA", "DB", dob, gender, last, firstMiddle].filter(Boolean).join("/"),
     copyBox: makeCopyBox(data)
   };
 }
