@@ -10,6 +10,10 @@ export default {
       return handleSave(request, env);
     }
 
+    if (request.method === "POST" && url.pathname === "/api/docfill") {
+      return handleDocFill(request, env);
+    }
+
     return env.ASSETS.fetch(request);
   },
 };
@@ -154,6 +158,56 @@ async function handleSave(request, env) {
     return sendJson({ ok: true });
   } catch (error) {
     return sendJson({ error: cleanServiceError(error.message || "Could not save online record.") }, 500);
+  }
+}
+
+async function handleDocFill(request, env) {
+  const webhookUrl = env.GOOGLE_DOCFILL_WEBHOOK_URL || env.GOOGLE_SHEET_WEBHOOK_URL;
+  if (!webhookUrl) {
+    return sendJson({ error: "Word template is not connected yet." }, 503);
+  }
+
+  try {
+    const record = await request.json();
+    const normalizedRecord = {
+      action: "docfill",
+      savedAt: String(record.savedAt || new Date().toISOString()),
+      surname: String(record.surname || ""),
+      givenNames: String(record.givenNames || ""),
+      birthDate: String(record.birthDate || ""),
+      gender: String(record.gender || ""),
+      nationality: String(record.nationality || ""),
+      expirationDate: String(record.expirationDate || ""),
+      copyBox: String(record.copyBox || ""),
+    };
+    if (!normalizedRecord.copyBox) {
+      normalizedRecord.copyBox = buildCopyBox(normalizedRecord);
+    }
+
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "text/plain;charset=utf-8",
+      },
+      body: JSON.stringify(normalizedRecord),
+    });
+    const payload = await response.json().catch(async () => ({ error: await response.text() }));
+
+    if (!response.ok || !payload.ok) {
+      return sendJson({ error: cleanServiceError(payload.error || `Word document failed: ${response.status}`) }, 502);
+    }
+
+    return sendJson({
+      ok: true,
+      docUrl: payload.docUrl || "",
+      downloadUrl: payload.downloadUrl || "",
+      fileBase64: payload.fileBase64 || "",
+      fileName: payload.fileName || "",
+      mimeType: payload.mimeType || "",
+      name: payload.name || "Filled document",
+    });
+  } catch (error) {
+    return sendJson({ error: cleanServiceError(error.message || "Could not create Word document.") }, 500);
   }
 }
 

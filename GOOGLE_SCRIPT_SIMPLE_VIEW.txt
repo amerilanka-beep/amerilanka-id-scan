@@ -23,28 +23,88 @@ function doGet() {
 }
 
 function doPost(e) {
-  const data = JSON.parse(e.postData.contents || "{}");
-  const copyBox = data.copyBox || [
-    cleanName(data.surname || ""),
-    cleanName(data.givenNames || ""),
-    travelDate(data.birthDate || ""),
-    genderText(data.gender || ""),
-    expiryYear(data.expirationDate || ""),
-    countryCode(data.nationality || "")
-  ].filter(Boolean).join("/");
+  try {
+    const data = JSON.parse(e.postData.contents || "{}");
+    if (data.action === "docfill") {
+      return sendJson(createFilledDoc(data));
+    }
 
-  getSheet().appendRow([
-    data.savedAt || new Date().toISOString(),
-    data.surname || "",
-    data.givenNames || "",
-    data.birthDate || "",
-    data.gender || "",
-    data.nationality || "",
-    data.expirationDate || "",
-    copyBox
-  ]);
+    const copyBox = data.copyBox || makeCopyBox(data);
+    getSheet().appendRow([
+      data.savedAt || new Date().toISOString(),
+      data.surname || "",
+      data.givenNames || "",
+      data.birthDate || "",
+      data.gender || "",
+      data.nationality || "",
+      data.expirationDate || "",
+      copyBox
+    ]);
 
-  return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
+    return sendJson({ ok: true });
+  } catch (error) {
+    return sendJson({ ok: false, error: error.message || String(error) });
+  }
+}
+
+function createFilledDoc(data) {
+  const props = PropertiesService.getScriptProperties();
+  const templateId = props.getProperty("DOCFILL_TEMPLATE_ID");
+  const folderId = props.getProperty("DOCFILL_FOLDER_ID");
+
+  if (!templateId) {
+    throw new Error("DOCFILL_TEMPLATE_ID is not set in Apps Script properties.");
+  }
+
+  const values = docFillValues(data);
+  const fileName = "DocFill-" + values.A3.replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyyMMdd-HHmmss");
+  const templateFile = DriveApp.getFileById(templateId);
+  const folder = folderId ? DriveApp.getFolderById(folderId) : DriveApp.getRootFolder();
+  const copy = templateFile.makeCopy(fileName, folder);
+  const doc = DocumentApp.openById(copy.getId());
+  const body = doc.getBody();
+
+  replacePlaceholder(body, "A3", values.A3);
+  replacePlaceholder(body, "B3", values.B3);
+  replacePlaceholder(body, "C3", values.C3);
+  replacePlaceholder(body, "A10", values.A10);
+  replacePlaceholder(body, "COPYBOX", values.copyBox);
+  doc.saveAndClose();
+
+  const exportUrl = "https://www.googleapis.com/drive/v3/files/" + copy.getId() + "/export?mimeType=application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  const response = UrlFetchApp.fetch(exportUrl, {
+    headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() }
+  });
+  const blob = response.getBlob().setName(fileName + ".docx");
+
+  return {
+    ok: true,
+    docUrl: doc.getUrl(),
+    fileName: blob.getName(),
+    mimeType: blob.getContentType(),
+    fileBase64: Utilities.base64Encode(blob.getBytes())
+  };
+}
+
+function docFillValues(data) {
+  const last = cleanName(data.surname || "");
+  const firstMiddle = cleanName(data.givenNames || "");
+  const dob = travelDate(data.birthDate || "");
+  const gender = genderText(data.gender || "");
+  const expire = expiryYear(data.expirationDate || "");
+  const country = countryCode(data.nationality || "");
+
+  return {
+    A3: [last, firstMiddle].filter(Boolean).join("/"),
+    B3: [dob, gender].filter(Boolean).join("/"),
+    C3: [expire, country].filter(Boolean).join("/"),
+    A10: ["3DOCSA", "DB", dob, last, firstMiddle].filter(Boolean).join("/"),
+    copyBox: makeCopyBox(data)
+  };
+}
+
+function replacePlaceholder(body, key, value) {
+  body.replaceText("\\{\\{" + key + "\\}\\}", value || "");
 }
 
 function getSheet() {
@@ -67,6 +127,17 @@ function buildCopyBox(row) {
     genderText(row[4] || ""),
     expiryYear(row[6] || ""),
     countryCode(row[5] || "")
+  ].filter(Boolean).join("/");
+}
+
+function makeCopyBox(data) {
+  return [
+    cleanName(data.surname || ""),
+    cleanName(data.givenNames || ""),
+    travelDate(data.birthDate || ""),
+    genderText(data.gender || ""),
+    expiryYear(data.expirationDate || ""),
+    countryCode(data.nationality || "")
   ].filter(Boolean).join("/");
 }
 
@@ -129,6 +200,10 @@ function countryCode(value) {
   };
   if (map[compact]) return map[compact];
   return compact.slice(0, 2);
+}
+
+function sendJson(payload) {
+  return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON);
 }
 
 function safe(value) {

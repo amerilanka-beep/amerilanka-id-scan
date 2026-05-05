@@ -150,7 +150,7 @@ csvButton.addEventListener("click", () => {
   downloadFile("amerilanka-id-scans.csv", toCsv([headers, ...rows]), "text/csv;charset=utf-8");
 });
 
-wordButton.addEventListener("click", () => {
+wordButton.addEventListener("click", async () => {
   const record = currentRecord();
   if (!hasRecordData(record)) {
     statusPill.textContent = "Empty";
@@ -159,15 +159,32 @@ wordButton.addEventListener("click", () => {
     return;
   }
 
-  const documentHtml = buildDocFillDocument(record);
-  const namePart = [cleanTravelName(record.surname), cleanTravelName(record.givenNames)]
-    .filter(Boolean)
-    .join("-")
-    .replace(/[^A-Z0-9-]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "") || "scan";
+  setWorking("Working", 20, "Making filled Word document...");
+  wordButton.disabled = true;
+  try {
+    const result = await createFilledWordDocument({ ...record, copyBox: buildFinalText(), savedAt: new Date().toISOString() });
+    if (!result.ok) {
+      setWorking("Setup Needed", 100, result.error || "Word template is not connected yet.");
+      alert(result.error || "Word template is not connected yet.");
+      return;
+    }
 
-  downloadFile(`DocFill-${namePart}-${Date.now()}.doc`, documentHtml, "application/msword;charset=utf-8");
+    setWorking("Ready", 100, "Filled Word document is ready.");
+    if (result.fileBase64) {
+      downloadBase64File(
+        result.fileName || `DocFill-${Date.now()}.docx`,
+        result.fileBase64,
+        result.mimeType || "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      );
+    } else if (result.downloadUrl || result.docUrl) {
+      const targetUrl = result.downloadUrl || result.docUrl;
+      window.open(targetUrl, "_blank", "noopener");
+    } else {
+      alert("Filled document was created, but no link came back.");
+    }
+  } finally {
+    wordButton.disabled = false;
+  }
 });
 
 renderSavedRecords();
@@ -219,6 +236,45 @@ async function saveOnlineRecord(record) {
   } catch {
     return { ok: false, configured: true, error: "Could not reach the online record service." };
   }
+}
+
+async function createFilledWordDocument(record) {
+  try {
+    const response = await fetch("/api/docfill", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(record),
+    });
+    const payload = await response.json().catch(() => ({}));
+    return {
+      ok: response.ok && payload.ok,
+      docUrl: payload.docUrl || "",
+      downloadUrl: payload.downloadUrl || "",
+      fileBase64: payload.fileBase64 || "",
+      fileName: payload.fileName || "",
+      mimeType: payload.mimeType || "",
+      error: payload.error || "",
+    };
+  } catch {
+    return { ok: false, error: "Could not reach the Word document service." };
+  }
+}
+
+function downloadBase64File(filename, base64, type) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  const blob = new Blob([bytes], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function fileToDataUrl(file) {
@@ -298,76 +354,6 @@ function buildFinalText() {
   }
 
   return lines.join("\n");
-}
-
-function buildDocFillDocument(record) {
-  const values = buildDocFillValues(record);
-  const rows = Array.from({ length: 10 }, (_, index) => {
-    const rowNumber = index + 1;
-    const cells = [1, 2, 3].map((columnNumber) => {
-      const key = `${String.fromCharCode(64 + columnNumber)}${rowNumber}`;
-      return `<td>${escapeHtml(values[key] || "")}</td>`;
-    }).join("");
-    return `<tr>${cells}</tr>`;
-  }).join("");
-
-  return `
-    <!doctype html>
-    <html xmlns:o="urn:schemas-microsoft-com:office:office"
-          xmlns:w="urn:schemas-microsoft-com:office:word"
-          xmlns="http://www.w3.org/TR/REC-html40">
-      <head>
-        <meta charset="utf-8">
-        <title>DocFill</title>
-        <style>
-          @page WordSection1 { size: 8.5in 11in; margin: 0.55in; }
-          div.WordSection1 { page: WordSection1; }
-          body { font-family: Arial, sans-serif; color: #111; }
-          h1 { font-size: 16pt; margin: 0 0 14pt; text-align: center; }
-          table { border-collapse: collapse; width: 100%; table-layout: fixed; }
-          td {
-            border: 1px solid #111;
-            height: 34pt;
-            padding: 5pt 6pt;
-            vertical-align: middle;
-            font-size: 11pt;
-            font-weight: bold;
-            white-space: normal;
-          }
-          .note { margin-top: 14pt; font-size: 9pt; color: #444; }
-        </style>
-      </head>
-      <body>
-        <div class="WordSection1">
-          <h1>AMERILANKA CUSTOMER'S INFORMATION FORM</h1>
-          <table>
-            ${rows}
-          </table>
-          <p class="note">Generated ${escapeHtml(new Date().toLocaleString())}</p>
-        </div>
-      </body>
-    </html>
-  `;
-}
-
-function buildDocFillValues(record) {
-  const last = cleanTravelName(record.surname);
-  const firstMiddle = cleanTravelName(record.givenNames);
-  const dob = formatTravelDate(record.birthDate);
-  const gender = shortGender(record.gender);
-  const expirationYear = formatTravelExpiryYear(record.expirationDate);
-  const country = countryCode(record.nationality);
-  const name = [last, firstMiddle].filter(Boolean).join("/");
-  const dobGender = [dob, gender].filter(Boolean).join("/");
-  const expiryCountry = [expirationYear, country].filter(Boolean).join("/");
-  const lineA10 = ["3DOCSA", "DB", dob, last, firstMiddle].filter(Boolean).join("/");
-
-  return {
-    A3: name,
-    B3: dobGender,
-    C3: expiryCountry,
-    A10: lineA10,
-  };
 }
 
 function cleanTravelName(value) {
