@@ -12,6 +12,8 @@ const saveButton = document.getElementById("saveButton");
 const csvButton = document.getElementById("csvButton");
 const wordButton = document.getElementById("wordButton");
 const savedList = document.getElementById("savedList");
+const docLinkCard = document.getElementById("docLinkCard");
+const docLink = document.getElementById("docLink");
 const reviewWarning = document.getElementById("reviewWarning");
 const reviewConfirm = document.getElementById("reviewConfirm");
 const rawText = document.getElementById("rawText");
@@ -86,6 +88,8 @@ clearButton.addEventListener("click", () => {
   previewImage.removeAttribute("src");
   previewWrap.hidden = true;
   progressWrap.hidden = true;
+  docLinkCard.hidden = true;
+  docLink.removeAttribute("href");
   statusPill.textContent = "Ready";
   rawText.textContent = "";
   reviewWarning.hidden = true;
@@ -123,8 +127,15 @@ saveButton.addEventListener("click", async () => {
 
   const onlineSaved = await saveOnlineRecord({ ...record, copyBox, savedAt });
   if (onlineSaved.ok) {
-    progressText.textContent = "Saved on this device and online record.";
-    alert("Saved on this device and online record. Refresh the computer page.");
+    progressText.textContent = "Saved. Making filled Word document...";
+    const docResult = await createFilledWordDocument({ ...record, copyBox, savedAt });
+    if (docResult.ok) {
+      progressText.textContent = "Saved and filled Word document is ready.";
+      openFilledDocument(docResult);
+    } else {
+      progressText.textContent = "Saved, but Word document did not open.";
+      alert(docResult.error || "Saved, but Word document did not open.");
+    }
   } else if (onlineSaved.configured) {
     progressText.textContent = onlineSaved.error || "Saved on this device. Online save failed.";
     alert(progressText.textContent);
@@ -170,18 +181,7 @@ wordButton.addEventListener("click", async () => {
     }
 
     setWorking("Ready", 100, "Filled Word document is ready.");
-    if (result.fileBase64) {
-      downloadBase64File(
-        result.fileName || `DocFill-${Date.now()}.docx`,
-        result.fileBase64,
-        result.mimeType || "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-      );
-    } else if (result.downloadUrl || result.docUrl) {
-      const targetUrl = result.downloadUrl || result.docUrl;
-      window.open(targetUrl, "_blank", "noopener");
-    } else {
-      alert("Filled document was created, but no link came back.");
-    }
+    openFilledDocument(result);
   } finally {
     wordButton.disabled = false;
   }
@@ -270,6 +270,30 @@ async function createFilledWordDocument(record) {
   } catch {
     return { ok: false, error: "Could not reach the Word document service." };
   }
+}
+
+function openFilledDocument(result) {
+  if (result.docUrl || result.downloadUrl) {
+    const targetUrl = result.docUrl || result.downloadUrl;
+    docLink.href = targetUrl;
+    docLinkCard.hidden = false;
+    const opened = window.open(targetUrl, "_blank", "noopener");
+    if (!opened) {
+      alert("Filled document is ready. Tap Open Word Doc on the page.");
+    }
+    return;
+  }
+
+  if (result.fileBase64) {
+    downloadBase64File(
+      result.fileName || `DocFill-${Date.now()}.docx`,
+      result.fileBase64,
+      result.mimeType || "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    );
+    return;
+  }
+
+  alert("Filled document was created, but no link came back.");
 }
 
 function downloadBase64File(filename, base64, type) {

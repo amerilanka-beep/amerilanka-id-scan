@@ -588,6 +588,9 @@ function getResponseText(payload) {
 
 function cleanServiceError(error) {
   const message = String(error || "").trim();
+  if (/<!doctype html|<html|google apps script|window\[['"]ppConfig/i.test(message)) {
+    return "Google document service did not return the filled document. In Apps Script, save the code, deploy a New version as Web app, set access to Anyone, then update the Cloudflare URL if Google gave a new /exec link.";
+  }
   if (/quota|billing|plan/i.test(message)) return "Scanner account needs billing or quota updated.";
   if (/api key|authorization|unauthorized|401/i.test(message)) return "Scanner account is not authorized.";
   return message

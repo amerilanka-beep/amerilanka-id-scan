@@ -71,19 +71,26 @@ function createFilledDoc(data) {
   replacePlaceholder(body, "COPYBOX", values.copyBox);
   doc.saveAndClose();
 
-  const exportUrl = "https://www.googleapis.com/drive/v3/files/" + copy.getId() + "/export?mimeType=application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-  const response = UrlFetchApp.fetch(exportUrl, {
-    headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() }
-  });
-  const blob = response.getBlob().setName(fileName + ".docx");
-
   return {
     ok: true,
     docUrl: doc.getUrl(),
-    fileName: blob.getName(),
-    mimeType: blob.getContentType(),
-    fileBase64: Utilities.base64Encode(blob.getBytes())
+    downloadUrl: "https://docs.google.com/document/d/" + copy.getId() + "/export?format=docx",
+    fileName: fileName + ".docx"
   };
+}
+
+function testCreateFilledDoc() {
+  const result = createFilledDoc({
+    action: "docfill",
+    surname: "APPUHAMY",
+    givenNames: "DON PAUL IVAN",
+    birthDate: "18 January 64",
+    gender: "Male",
+    nationality: "United States of America",
+    expirationDate: "07 August 26"
+  });
+  Logger.log(result.docUrl);
+  Logger.log(result.downloadUrl);
 }
 
 function docFillValues(data) {
